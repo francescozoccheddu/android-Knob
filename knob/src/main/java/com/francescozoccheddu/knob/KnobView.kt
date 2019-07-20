@@ -41,10 +41,11 @@ class KnobView : View {
             val tg = Color.green(target).f
             val tb = Color.blue(target).f
             val ta = Color.alpha(target).f
-            r = smooth(r, tr, smoothness, elapsed).snap(tr, COLOR_SNAP_THRESHOLD)
-            g = smooth(g, tg, smoothness, elapsed).snap(tg, COLOR_SNAP_THRESHOLD)
-            b = smooth(b, tb, smoothness, elapsed).snap(tb, COLOR_SNAP_THRESHOLD)
-            a = smooth(a, ta, smoothness, elapsed).snap(ta, COLOR_SNAP_THRESHOLD)
+            val s = smoothness * GLOBAL_SMOOTHNESS_FACTOR
+            r = smooth(r, tr, s, elapsed).snap(tr, COLOR_SNAP_THRESHOLD)
+            g = smooth(g, tg, s, elapsed).snap(tg, COLOR_SNAP_THRESHOLD)
+            b = smooth(b, tb, s, elapsed).snap(tb, COLOR_SNAP_THRESHOLD)
+            a = smooth(a, ta, s, elapsed).snap(ta, COLOR_SNAP_THRESHOLD)
             if (old != int) invalidate()
         }
 
@@ -54,7 +55,7 @@ class KnobView : View {
 
     private fun KMutableProperty0<Float>.smooth(target: Float, smoothness: Float, elapsed: Float, snapThreshold: Float, min: Float, max: Float) {
         val before = get()
-        set(smooth(before, target, smoothness, elapsed).snap(target, snapThreshold).clamp(min, max))
+        set(smooth(before, target, smoothness * GLOBAL_SMOOTHNESS_FACTOR, elapsed).snap(target, snapThreshold).clamp(min, max))
         if (before != get()) invalidate()
     }
 
@@ -111,7 +112,8 @@ class KnobView : View {
 
     companion object {
         const val MAX_REVOLUTION_COUNT = 3
-        private const val LENGTH_SNAP_THRESHOLD = 1 / 100f
+        const val GLOBAL_SMOOTHNESS_FACTOR = 1f / 4f
+        private const val LENGTH_SNAP_THRESHOLD = 1f / 500f
         private const val THICKNESS_FACTOR_SNAP_THRESHOLD = 1f / 50f
         private const val RADIUS_FACTOR_SNAP_THRESHOLD = 1f / 100f
         private const val COLOR_SNAP_THRESHOLD = 2f
@@ -158,12 +160,12 @@ class KnobView : View {
     @FloatRange(from = 1.0, to = 3.0)
     var inputThicknessFactor = 2f
     var tappable = false
-    @FloatRange(from = 0.0, to = 10.0)
-    var progressSmoothness = 0f
-    @FloatRange(from = 0.0, to = 10.0)
-    var trackLayoutSmoothness = 0f
-    @FloatRange(from = 0.0, to = 10.0)
-    var trackLengthSmoothness = 0f
+    @FloatRange(from = 0.0, to = 1.0)
+    var progressSmoothness = 0.4f
+    @FloatRange(from = 0.0, to = 1.0)
+    var trackLayoutSmoothness = 0.2f
+    @FloatRange(from = 0.0, to = 1.0)
+    var trackLengthSmoothness = 0.2f
     var clockwise = true
 
     private fun updateValue(elapsed: Float) {
@@ -188,7 +190,7 @@ class KnobView : View {
             if (getLength(minValue) >= 1f) throw IllegalStateException("'${::minValue.name}' does not fall inside the first revolution")
             // Update
             val elapsed = elapsedMillis / 1000f
-            updateValue(value)
+            updateValue(elapsed)
             tracks.forEach { it.update(elapsed) }
         }
     }
