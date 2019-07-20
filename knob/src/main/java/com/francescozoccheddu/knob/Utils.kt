@@ -18,9 +18,8 @@ internal fun hsv(
                 ) = Color.HSVToColor((alpha * 255).roundToInt(), floatArrayOf(hue, saturation, value))
 
 internal fun smooth(
-    current: Float, target: Float, @FloatRange(from = 0.0) smoothness: Float, elapsedTime: Float
-                   ): Float = if (smoothness == 0f) target
-else lerp(current, target, min(elapsedTime / smoothness, 1f))
+    current: Float, target: Float, @FloatRange(from = 0.0) smoothness: Float, @FloatRange(from = 0.0) elapsedTime: Float
+                   ): Float = if (smoothness == 0f) target else lerp(current, target, min(elapsedTime / smoothness, 1f))
 
 internal fun lerp(from: Float, to: Float, progress: Float) = from * (1 - progress) + to * progress
 
