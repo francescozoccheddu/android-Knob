@@ -24,7 +24,7 @@ class KnobView : View {
         var b = 0f
         var a = 0f
 
-        private val Float.b8 get() = (this * 255f).roundToInt()
+        private val Float.b8 get() = this.roundToInt()
 
         var int
             get() = Color.argb(a.b8, r.b8, g.b8, b.b8)
@@ -61,14 +61,28 @@ class KnobView : View {
 
     private inner class Revolution(val index: Int) {
 
-        private var thicknessFactor = 1f
+        private var thicknessFactor = 0f
         private var radiusFactor = 1f
-        private var backgroundColor = Color.BLACK
-        private var foregroundColor = Color.BLUE
+        private val backgroundColor = ColorF()
+        private val foregroundColor = ColorF()
         // TODO Add labels if last (fade animation)
 
         fun update(elapsed: Float) {
-            radiusFactor = 1 - 0.2f * index
+            val order = floor(progressLength - index).toInt()
+            val positiveOrder = max(order, 0)
+            run {
+                val target = if (order < 0 && trackLength - index < MIN_COLLAPSING_TRACK_LENGTH) 0f
+                else Math.pow(revolutionThicknessBackoff.d, positiveOrder.d).f
+                ::thicknessFactor.smooth(target, trackLayoutSmoothness, elapsed, THICKNESS_FACTOR_SNAP_THRESHOLD, 0f, 1f)
+            }
+            run {
+                val target = Math.pow(revolutionRadiusBackoff.d, positiveOrder.d).f
+                ::radiusFactor.smooth(target, trackLayoutSmoothness, elapsed, RADIUS_FACTOR_SNAP_THRESHOLD, 0f, 1f)
+            }
+            run {
+                backgroundColor.smooth(trackColors[index], trackLayoutSmoothness, elapsed)
+                foregroundColor.smooth(progressColors[positiveOrder], trackLayoutSmoothness, elapsed)
+            }
         }
 
         fun finishAnimation() {
@@ -86,24 +100,26 @@ class KnobView : View {
 
             val arcStart = (if (index == 0) minValueLength * 360f else 0f) - startAngle
             fun draw(sweep: Float, color: Int) {
-                trackPaint.color = color
-                if (sweep > 0f) {
-                    canvas.drawArc(cx - r, cy - r, cx + r, cy + r, arcStart, sweep, false, trackPaint)
-                } else if (index == 0) {
-                    val arcStartRad = toRadians(-arcStart.d).f
-                    val x = cos(arcStartRad) * r
-                    val y = -sin(arcStartRad) * r
-                    canvas.drawPoint(cx + x, cy + y, trackPaint)
+                if (Color.alpha(color) > 0 && thicknessFactor > 0f) {
+                    trackPaint.color = color
+                    if (sweep > 0f) {
+                        canvas.drawArc(cx - r, cy - r, cx + r, cy + r, arcStart, sweep, false, trackPaint)
+                    } else {
+                        val arcStartRad = toRadians(-arcStart.d).f
+                        val x = cos(arcStartRad) * r
+                        val y = -sin(arcStartRad) * r
+                        canvas.drawPoint(cx + x, cy + y, trackPaint)
+                    }
                 }
             }
 
-            draw(getSweep(trackLength), backgroundColor)
-            draw(getSweep(progressLength), foregroundColor)
+            draw(getSweep(trackLength), backgroundColor.int)
+            draw(getSweep(progressLength), foregroundColor.int)
         }
 
     }
 
-    private val tracks = (0..MAX_REVOLUTION_COUNT).map { Revolution(it) }.toTypedArray()
+    private val tracks = TRACK_INDICES.map { Revolution(it) }.toTypedArray()
 
     constructor(context: Context?) : super(context)
     constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
@@ -114,9 +130,11 @@ class KnobView : View {
         const val MAX_REVOLUTION_COUNT = 3
         const val GLOBAL_SMOOTHNESS_FACTOR = 1f / 4f
         private const val LENGTH_SNAP_THRESHOLD = 1f / 500f
-        private const val THICKNESS_FACTOR_SNAP_THRESHOLD = 1f / 50f
-        private const val RADIUS_FACTOR_SNAP_THRESHOLD = 1f / 100f
+        private const val THICKNESS_FACTOR_SNAP_THRESHOLD = 1f / 1000f
+        private const val RADIUS_FACTOR_SNAP_THRESHOLD = 1f / 1000f
         private const val COLOR_SNAP_THRESHOLD = 2f
+        private const val MIN_COLLAPSING_TRACK_LENGTH = 1f / 4f
+        private val TRACK_INDICES = 0..(MAX_REVOLUTION_COUNT - 1)
     }
 
     var minValue = 0f
@@ -143,10 +161,20 @@ class KnobView : View {
     @Dimension
     var thickness = 20f.dp
     @ColorInt
-    var trackColor = hsv(0f, 0f, 0f, 0.75f)
+    val progressColors = TRACK_INDICES.map {
+        val a = it / max(MAX_REVOLUTION_COUNT - 1, 1).f
+        hsv(lerp(180f, 190f, a), lerp(0.75f, 0.5f, a), lerp(0.75f, 0.5f, a))
+    }
     @ColorInt
-    // TODO Use list (add single color setter helper)
-    var progressColor = hsv(180f, 0.75f, 0.75f, 1f)
+    val trackColors = IntArray(MAX_REVOLUTION_COUNT).apply {
+        fill(hsv(0f, 0f, 0.1f))
+    }
+    var trackColor
+        get() = trackColors[0]
+        set(value) = trackColors.fill(value)
+    var progressColor
+        get() = progressColors[0]
+        set(value) = trackColors.fill(value)
     // degrees, counter-clockwise
     var startAngle = 90f
         set(value) {
@@ -163,7 +191,7 @@ class KnobView : View {
     @FloatRange(from = 0.0, to = 1.0)
     var progressSmoothness = 0.4f
     @FloatRange(from = 0.0, to = 1.0)
-    var trackLayoutSmoothness = 0.2f
+    var trackLayoutSmoothness = 0.5f
     @FloatRange(from = 0.0, to = 1.0)
     var trackLengthSmoothness = 0.2f
     var clockwise = true
