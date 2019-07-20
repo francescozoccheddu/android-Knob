@@ -1,25 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-        xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="10dp">
+    
+    <com.francescozoccheddu.knob.KnobView
+        android:id="@+id/knob"
+        android:layout_width="256dp"
+        android:layout_height="256dp"
+        android:layout_margin="20dp" />
+    
+    <TextView
+        style="@style/TextAppearance.AppCompat.Title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="knob" />
+    
+    <TextView
+        style="@style/TextAppearance.AppCompat.Body1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="by Francesco Zoccheddu" />
+    
+    <SeekBar
+        android:id="@+id/sb_min"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="10dp"
-        android:orientation="vertical"
-        android:gravity="center"
->
-
-    <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="knob"
-            style="@style/TextAppearance.AppCompat.Title"
-    />
-
-    <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="by Francesco Zoccheddu"
-            style="@style/TextAppearance.AppCompat.Body1"
-    />
+        android:layout_height="wrap_content"
+        android:max="99" />
+    
+    <SeekBar
+        android:id="@+id/sb_max"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="100" />
+    
+    <SeekBar
+        android:id="@+id/sb_val"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:max="200" />
 
 </LinearLayout>
