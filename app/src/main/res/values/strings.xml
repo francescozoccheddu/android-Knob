@@ -1,3 +1,5 @@
 <resources>
-    <string name="app_name">KnobTestbed</string>
+    <string name="app_name">Knob</string>
+    <string name="title">knob</string>
+    <string name="subtitle">by <b>Francesco Zoccheddu</b></string>
 </resources>
