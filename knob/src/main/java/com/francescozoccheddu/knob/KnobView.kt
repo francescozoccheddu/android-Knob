@@ -12,6 +12,7 @@ import android.view.MotionEvent
 import android.view.View
 import androidx.annotation.Dimension
 import androidx.annotation.FloatRange
+import androidx.annotation.IntRange
 import java.lang.Math.toRadians
 import kotlin.math.*
 import kotlin.reflect.KMutableProperty0
@@ -163,8 +164,14 @@ class KnobView : View {
             field = value
             invalidate()
         }
-    var value
-        get() = unsnappedValue // TODO Snap
+    var value: Float
+        get() {
+            if (snap > 0f) {
+                val ticks = ((unsnappedValue - startValue) / snap).roundToInt()
+                return (ticks * snap + startValue).clamp(minValue, maxValue)
+            } else
+                return unsnappedValue
+        }
         set(value) {
             unsnappedValue = value
         }
@@ -200,8 +207,10 @@ class KnobView : View {
     @FloatRange(from = 0.7, to = 1.0)
     var revolutionThicknessBackoff = 0.9f
     @FloatRange(from = 1.0, to = 3.0)
-    var inputThicknessFactor = 4f
-    var tappable = false
+    var inputThicknessFactor = 3f
+    var scrollable = true
+    var tappable = true
+    var draggable = true
     @FloatRange(from = 0.0, to = 1.0)
     var progressSmoothness = 0.4f
     @FloatRange(from = 0.0, to = 1.0)
@@ -209,7 +218,10 @@ class KnobView : View {
     @FloatRange(from = 0.0, to = 1.0)
     var trackLengthSmoothness = 0.4f
     var clockwise = true
+    @FloatRange(from = 0.0)
     var snap = 0f
+    @IntRange(from = 0, to = 20)
+    var labelThicks = 0
 
     // TODO Add thumb (with thickness factor)
     // TODO Add trackThicknessFactor
@@ -309,8 +321,8 @@ class KnobView : View {
         if (d <= maxD) {
             val ua = (if (clockwise) 360f - angle else angle) + startAngle
             val frl = normalizeAngle(ua) / 360f
-            var lrl = frl + getLengthByValue(unsnappedValue).toInt()
-            if (lrl > getLengthByValue(maxValue)) lrl -= 1
+            var lrl = frl + max(getLengthByValue(unsnappedValue).previous, 0)
+            if (lrl > getLengthByValue(maxValue)) lrl -= 1f
             if (lrl >= getLengthByValue(minValue)) return lrl
         }
         return null
@@ -320,12 +332,8 @@ class KnobView : View {
                             @FloatRange(from = 0.0) thicknessFactor: Float,
                             @FloatRange(from = 0.0, to = 1.0) revolutionArcSnap: Float): Float? {
         val length = getLengthAt(distance, angle, thicknessFactor)
-        if (length != null && length > 1f) {
-            val maxLength = getLengthByValue(maxValue)
-            val minDiff = (maxLength - length) % 1f
-            if (minDiff * Math.PI * 2 * outerTrackRadius > 1f - revolutionArcSnap) {
-                return maxLength
-            }
+        if (length != null && revolutionArcSnap > 0f) {
+            // TODO Implement
         }
         return length
     }
@@ -349,16 +357,26 @@ class KnobView : View {
 
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent?, distanceX: Float, distanceY: Float): Boolean {
             if (e1 != null) {
-                if (e2 != null && getLengthAt(e1, inputThicknessFactor, 0f) != null) {
+                if (draggable && e2 != null && getLengthAt(e1, inputThicknessFactor, 0f) != null) {
                     val length = getLengthAt(e2, inputThicknessFactor, 0f)
                     if (length != null) {
-                        val minDiff = absMin(length - getLengthByValue(unsnappedValue), length - getLengthByValue(value), length - progressLength)
-                        if (minDiff * Math.PI * 2 * outerTrackRadius <= INPUT_DRAG_ARC_SNAP_THRESHOLD) {
-                            unsnappedValue = getValueByLength(length)
-                            return true
+                        val unsnappedLength = getLengthByValue(unsnappedValue)
+                        val snappedLength = getLengthByValue(value)
+                        val minLength = getLengthByValue(minValue)
+                        val maxLength = getLengthByValue(maxValue)
+                        fun trySet(length: Float): Boolean {
+                            if (length >= minLength && length <= maxLength) {
+                                val minDiff = absMin(length - unsnappedLength, length - snappedLength, length - progressLength)
+                                if (minDiff * Math.PI * 2 * outerTrackRadius <= INPUT_DRAG_ARC_SNAP_THRESHOLD) {
+                                    unsnappedValue = getValueByLength(length)
+                                    return true
+                                }
+                            }
+                            return false
                         }
+                        return trySet(length) || trySet(length + 1f) || trySet(length - 1f)
                     }
-                } else {
+                } else if (scrollable) {
                     val r = contentRadius
                     if (r > 0 && e1.distance <= r * SCROLL_HOLD_RADIUS_FACTOR) {
                         unsnappedValue += distanceY / r * SCROLL_FACTOR * revolutionValue
@@ -374,7 +392,7 @@ class KnobView : View {
         }
 
         override fun onSingleTapUp(e: MotionEvent?): Boolean {
-            if (e != null) {
+            if (tappable && e != null) {
                 val length = getLengthAt(e, inputThicknessFactor, INPUT_REVOLUTION_ARC_SNAP_THRESHOLD)
                 if (length != null) {
                     unsnappedValue = getValueByLength(length)
