@@ -2,8 +2,9 @@ package com.francescozoccheddu.knob
 
 import android.animation.TimeAnimator
 import android.content.Context
-import android.graphics.*
-import android.text.TextPaint
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -12,7 +13,6 @@ import androidx.annotation.ColorInt
 import androidx.annotation.Dimension
 import androidx.annotation.FloatRange
 import androidx.annotation.IntRange
-import java.lang.Math.toRadians
 import kotlin.math.*
 import kotlin.reflect.KMutableProperty0
 
@@ -63,8 +63,6 @@ class KnobView : View {
         if (before != get()) invalidate()
     }
 
-    private val tempRectF = RectF()
-    private val tempRect = Rect()
 
     private inner class Revolution(val index: Int) {
 
@@ -72,8 +70,7 @@ class KnobView : View {
         private var radiusFactor = 1f
         private val backgroundColor = ColorF()
         private val foregroundColor = ColorF()
-        private val backgroundLabelColor = ColorF()
-        private val foregroundLabelColor = ColorF()
+        private val labelColor = ColorF()
 
         fun update(elapsed: Float) {
             val order = (progressLength - index).previous
@@ -90,8 +87,7 @@ class KnobView : View {
             run {
                 backgroundColor.smooth(trackColorProvider.provide(this@KnobView, index, order), trackLayoutSmoothness, elapsed)
                 foregroundColor.smooth(progressColorProvider.provide(this@KnobView, index, order), trackLayoutSmoothness, elapsed)
-                backgroundLabelColor.smooth(trackLabelColorProvider.provide(this@KnobView, index, order), trackLayoutSmoothness, elapsed)
-                foregroundLabelColor.smooth(progressLabelColorProvider.provide(this@KnobView, index, order), trackLayoutSmoothness, elapsed)
+                labelColor.smooth(labelColorProvider.provide(this@KnobView, index, order), trackLayoutSmoothness, elapsed)
             }
         }
 
@@ -100,54 +96,28 @@ class KnobView : View {
         }
 
         fun draw(canvas: Canvas) {
-            val cx = contentRect.centerX()
-            val cy = contentRect.centerY()
+            val center = contentRect.center
             val r = outerTrackRadius * radiusFactor
-            tempRectF.set(cx - r, cy - r, cx + r, cy + r)
+            val w = thickness * thicknessFactor
 
             val minValueLength = lengthByValue(minValue)
-            fun getSweep(length: Float) = (if (index == 0) min(length, 1f) - minValueLength else min(length - index, 1f)) * 360f
+            fun getSweep(length: Float) =
+                (if (index == 0) min(length, 1f) - minValueLength else (length - index).clamp(0f, 1f)) * 360f
 
-            val arcStart = (if (index == 0) minValueLength * 360f else 0f) - startAngle
-            fun draw(sweep: Float, color: Int, thicknessFactor: Float) {
-                if (Color.alpha(color) > 0 && thicknessFactor > 0f) {
-                    arcPaint.strokeWidth = thickness * thicknessFactor
-                    arcPaint.color = color
-                    // TODO Support for counter-clockwise drawing
-                    if (sweep > 0f) {
-                        canvas.drawArc(tempRectF, arcStart, sweep, false, arcPaint)
-                    } else {
-                        val arcStartRad = toRadians(-arcStart.d).f
-                        val x = cos(arcStartRad) * r
-                        val y = -sin(arcStartRad) * r
-                        canvas.drawPoint(cx + x, cy + y, arcPaint)
-                    }
+            val startAngle = (if (index == 0) minValueLength * 360f else 0f) - startAngle
+
+            val sign = if (clockwise) -1f else 1f
+
+            canvas.drawTrack(center, r, startAngle, sign * getSweep(trackLength), backgroundColor.int, w * trackThicknessFactor)
+            canvas.drawTrack(center, r, startAngle, sign * getSweep(progressLength), foregroundColor.int, w)
+            if (labelColor.a > 0f && thicknessFactor > 0f) {
+                for (i in 0..(labelThicks - 1)) {
+                    val lrl = i.f / labelThicks.f
+                    val angle = lrl * 360f
+                    val text = labelProvider.provide(this@KnobView, index, i, valueByLength(index + lrl))
+                    canvas.drawLabel(center, r, -startAngle + sign * angle, text, labelColor.int, labelSize * thicknessFactor)
                 }
             }
-
-            fun drawLabels(color: Int) {
-                fun drawLabel(angle: Float, text: String) {
-                    val angleRad = toRadians(-arcStart - angle.d).f
-                    val x = cos(angleRad) * r
-                    val y = -sin(angleRad) * r
-                    textPaint.getTextBounds(text, 0, text.length, tempRect)
-                    canvas.drawText(text, cx + x, cy + y - tempRect.exactCenterY(), textPaint)
-                }
-                if (Color.alpha(color) > 0 && thicknessFactor > 0f) {
-                    textPaint.color = color
-                    for (i in 0..(labelThicks - 1)) {
-                        val lrl = i.f / labelThicks.f
-                        val angle = lrl * 360f
-                        val text = labelProvider.provide(this@KnobView, index, i, valueByLength(index + lrl))
-                        drawLabel(angle, text)
-                    }
-                }
-            }
-
-            draw(getSweep(trackLength), backgroundColor.int, thicknessFactor * trackThicknessFactor)
-            drawLabels(backgroundLabelColor.int)
-            draw(getSweep(progressLength), foregroundColor.int, thicknessFactor)
-            drawLabels(foregroundLabelColor.int)
 
         }
 
@@ -210,7 +180,7 @@ class KnobView : View {
     @FloatRange(from = 0.0, to = 1.0)
     var trackThicknessFactor = 0.9f
     // degrees, counter-clockwise
-    var startAngle = -90f
+    var startAngle = 30f
         set(value) {
             field = value
             invalidate()
@@ -230,7 +200,7 @@ class KnobView : View {
     var trackLayoutSmoothness = 0.4f
     @FloatRange(from = 0.0, to = 1.0)
     var trackLengthSmoothness = 0.4f
-    var clockwise = true
+    var clockwise = false
     @FloatRange(from = 0.0)
     var snap = 10f
     @IntRange(from = 0, to = 20)
@@ -246,14 +216,9 @@ class KnobView : View {
             return hsv(lerp(180f, 190f, a), lerp(0.75f, 0.5f, a), lerp(0.75f, 0.5f, a))
         }
     }
-    var trackLabelColorProvider: ColorProvider = object : ColorProvider {
+    var labelColorProvider: ColorProvider = object : ColorProvider {
         override fun provide(view: KnobView, track: Int, order: Int): Int {
             return hsv(0f, 0f, 0.8f)
-        }
-    }
-    var progressLabelColorProvider: ColorProvider = object : ColorProvider {
-        override fun provide(view: KnobView, track: Int, order: Int): Int {
-            return hsv(0f, 0f, 1f)
         }
     }
     var labelProvider: LabelProvider = object : LabelProvider {
@@ -263,10 +228,6 @@ class KnobView : View {
     }
     @Dimension
     var labelSize = 16f.dp
-        set(value) {
-            field = value
-            textPaint.textSize = value
-        }
 
     interface ColorProvider {
 
@@ -316,18 +277,6 @@ class KnobView : View {
             updateValue(elapsed)
             tracks.forEach { it.update(elapsed) }
         }
-    }
-
-    private val arcPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        isAntiAlias = true
-        strokeCap = Paint.Cap.ROUND
-        strokeJoin = Paint.Join.ROUND
-        style = Paint.Style.STROKE
-    }
-
-    private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        textAlign = Paint.Align.CENTER
-        textSize = labelSize
     }
 
     private val contentRect = RectF()
@@ -386,7 +335,7 @@ class KnobView : View {
         val d = abs(outerTrackRadius - distance)
         val maxD = thickness / 2f * thicknessFactor
         if (d <= maxD) {
-            val ua = (if (clockwise) 360f - angle else angle) + startAngle
+            val ua = (angle - startAngle) * if (clockwise) -1f else 1f
             val frl = normalizeAngle(ua) / 360f
             var lrl = frl + max(lengthByValue(unsnappedValue).previous, 0)
             if (lrl > lengthByValue(maxValue)) lrl -= 1f
