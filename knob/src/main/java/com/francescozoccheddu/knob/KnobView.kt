@@ -5,19 +5,255 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
-import androidx.annotation.ColorInt
-import androidx.annotation.Dimension
-import androidx.annotation.FloatRange
+import androidx.annotation.*
 import androidx.annotation.IntRange
 import kotlin.math.*
 import kotlin.reflect.KMutableProperty0
 
 
 class KnobView : View {
+
+    constructor(context: Context?) : super(context)
+    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
+    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
+
+    companion object {
+        const val MAX_REVOLUTION_COUNT = 3
+        const val GLOBAL_SMOOTHNESS_FACTOR = 1f / 4f
+        private val INPUT_DRAG_ARC_SNAP_THRESHOLD = 60f.dp
+        private const val LENGTH_SNAP_THRESHOLD = 1f / 500f
+        private const val THICKNESS_FACTOR_SNAP_THRESHOLD = 1f / 1000f
+        private const val RADIUS_FACTOR_SNAP_THRESHOLD = 1f / 1000f
+        private const val COLOR_SNAP_THRESHOLD = 2f
+        private const val MIN_COLLAPSING_TRACK_LENGTH = 1f / 4f
+        private const val SCROLL_HOLD_RADIUS_FACTOR = 1f / 2f
+        private const val SCROLL_FACTOR = 1f / 2f
+        private val TRACK_INDICES = 0..(MAX_REVOLUTION_COUNT - 1)
+
+        fun makeColorList(@FloatRange(from = 0.0, to = 360.0) fromHue: Float,
+                          @FloatRange(from = 0.0, to = 1.0) fromSat: Float,
+                          @FloatRange(from = 0.0, to = 1.0) fromValue: Float,
+                          @FloatRange(from = 0.0, to = 1.0) fromAlpha: Float,
+                          @FloatRange(from = 0.0, to = 360.0) toHue: Float,
+                          @FloatRange(from = 0.0, to = 1.0) toSat: Float,
+                          @FloatRange(from = 0.0, to = 1.0) toValue: Float,
+                          @FloatRange(from = 0.0, to = 1.0) toAlpha: Float,
+                          @IntRange(from = 1, to = MAX_REVOLUTION_COUNT.toLong()) count: Int = MAX_REVOLUTION_COUNT): Iterable<Int> {
+            val list = IntArray(count)
+            for (i in 0..(count - 1)) {
+                val a = i.f / max(count - 1, 1).f
+                list[i] = hsv(lerp(fromHue, toHue, a), lerp(fromSat, toSat, a), lerp(fromValue, toValue, a), lerp(fromAlpha, toAlpha, a))
+            }
+            return list.asIterable()
+        }
+
+        fun makeColorList(@ColorInt from: Int, @ColorInt to: Int,
+                          @IntRange(from = 1, to = MAX_REVOLUTION_COUNT.toLong()) count: Int = MAX_REVOLUTION_COUNT): Iterable<Int> {
+            val fromR = Color.red(from).f
+            val fromG = Color.green(from).f
+            val fromB = Color.blue(from).f
+            val fromA = Color.alpha(from).f
+            val toR = Color.red(to).f
+            val toG = Color.green(to).f
+            val toB = Color.blue(to).f
+            val toA = Color.alpha(to).f
+            val list = IntArray(count)
+            for (i in 0..(count - 1)) {
+                val a = i.f / max(count - 1, 1).f
+                list[i] = Color.argb(lerp(fromA, toA, a).roundToInt(),
+                                     lerp(fromR, toR, a).roundToInt(),
+                                     lerp(fromG, toG, a).roundToInt(),
+                                     lerp(fromB, toB, a).roundToInt())
+            }
+            return list.asIterable()
+        }
+
+    }
+
+    var minValue = 0f
+        set(value) {
+            field = value
+            invalidate()
+        }
+    var maxValue = 300f
+        set(value) {
+            field = value
+            invalidate()
+        }
+    var startValue = 0f
+        set(value) {
+            field = value
+            invalidate()
+        }
+    var value: Float
+        get() {
+            if (snap > 0f) {
+                val ticks = ((rawValue - startValue) / snap).roundToInt()
+                return (ticks * snap + startValue).clamp(minValue, maxValue)
+            } else
+                return rawValue
+        }
+        set(value) {
+            rawValue = value
+        }
+    var revolutionValue = 100f
+        set(value) {
+            field = value
+            invalidate()
+        }
+    @Dimension
+    var thickness = 32f.dp
+        set(value) {
+            field = value
+            invalidate()
+        }
+    @FloatRange(from = 0.0, to = 1.0)
+    var trackThicknessFactor = 0.9f
+        set(value) {
+            field = value
+            invalidate()
+        }
+    // degrees, counter-clockwise
+    var startAngle = 90f
+        set(value) {
+            field = value
+            invalidate()
+        }
+    @FloatRange(from = 0.7, to = 1.0)
+    var revolutionRadiusBackoff = 0.9f
+    @FloatRange(from = 0.7, to = 1.0)
+    var revolutionThicknessBackoff = 0.9f
+    @FloatRange(from = 1.0, to = 3.0)
+    var inputThicknessFactor = 3f
+    var scrollable = true
+    var tappable = true
+    var draggable = true
+    @FloatRange(from = 0.0, to = 1.0)
+    var progressSmoothness = 0.4f
+    @FloatRange(from = 0.0, to = 1.0)
+    var trackLayoutSmoothness = 0.4f
+    @FloatRange(from = 0.0, to = 1.0)
+    var trackLengthSmoothness = 0.4f
+    var clockwise = true
+        set(value) {
+            field = value
+            invalidate()
+        }
+    @FloatRange(from = 0.0)
+    var snap = 0f
+    @IntRange(from = 0, to = 20)
+    var labelThicks = 0
+        set(value) {
+            field = value
+            invalidate()
+        }
+    var trackColorProvider: ColorProvider = ConstantColor(hsv(0f, 0f, 0.1f))
+    var progressColorProvider: ColorProvider = ColorByOrder(makeColorList(180f, 0.75f, 0.75f, 1f, 190f, 0.5f, 0.5f, 1f))
+    var labelColorProvider: ColorProvider = ColorByOrder(listOf(Color.WHITE, Color.TRANSPARENT))
+    var labelProvider: LabelProvider = object : LabelProvider {
+        override fun provide(view: KnobView, track: Int, thick: Int, value: Float): String {
+            return thick.toString()
+        }
+    }
+        set(value) {
+            field = value
+            invalidate()
+        }
+    @Dimension
+    var labelSize = 16f.dp
+        set(value) {
+            field = value
+            invalidate()
+        }
+    var labelFont = Typeface.DEFAULT
+        set(value) {
+            field = value
+            invalidate()
+        }
+    @FloatRange(from = 0.0, to = 2.0)
+    var thumbThicknessFactor = 0.75f
+    var thumbEnabled = false
+
+    interface ColorProvider {
+
+        @ColorInt
+        fun provide(view: KnobView,
+                    @IntRange(from = 0, to = MAX_REVOLUTION_COUNT - 1L) revolution: Int,
+                    @IntRange(from = -MAX_REVOLUTION_COUNT + 1L, to = MAX_REVOLUTION_COUNT - 1L) order: Int): Int
+
+    }
+
+    abstract class ColorListProvider(@Size(min = 1, max = MAX_REVOLUTION_COUNT.toLong()) colors: Iterable<Int>) : ColorProvider {
+
+        private val colors = colors.toList()
+
+        protected abstract fun getIndex(view: KnobView,
+                                        @IntRange(from = 0, to = MAX_REVOLUTION_COUNT - 1L) track: Int,
+                                        @IntRange(from = -MAX_REVOLUTION_COUNT + 1L, to = MAX_REVOLUTION_COUNT - 1L) order: Int): Int
+
+        override fun provide(view: KnobView, revolution: Int, order: Int): Int {
+            return colors[min(getIndex(view, revolution, order), colors.lastIndex)]
+        }
+
+    }
+
+    class ConstantColor(@ColorInt val color: Int) : ColorProvider {
+        override fun provide(view: KnobView, revolution: Int, order: Int): Int {
+            return color
+        }
+    }
+
+    class ColorByOrder(@Size(min = 1, max = MAX_REVOLUTION_COUNT.toLong()) colors: Iterable<Int>) : ColorListProvider(colors) {
+        override fun getIndex(view: KnobView, track: Int, order: Int): Int {
+            return max(order, 0)
+        }
+    }
+
+    class ColorByRevolution(@Size(min = 1, max = MAX_REVOLUTION_COUNT.toLong()) colors: Iterable<Int>) : ColorListProvider(colors) {
+        override fun getIndex(view: KnobView, revolution: Int, order: Int): Int {
+            return revolution
+        }
+    }
+
+    interface LabelProvider {
+
+        fun provide(view: KnobView,
+                    @IntRange(from = 0, to = MAX_REVOLUTION_COUNT - 1L) track: Int,
+                    @IntRange(from = 0) thick: Int,
+                    value: Float): String
+
+    }
+
+    fun setTrackColor(@ColorInt color: Int) {
+        trackColorProvider = ConstantColor(color)
+    }
+
+    fun setTrackColorsByRevolution(@Size(min = 1, max = MAX_REVOLUTION_COUNT.toLong()) colors: Iterable<Int>) {
+        trackColorProvider = ColorByRevolution(colors)
+    }
+
+    fun setTrackColorsByOrder(@Size(min = 1, max = MAX_REVOLUTION_COUNT.toLong()) colors: Iterable<Int>) {
+        trackColorProvider = ColorByOrder(colors)
+    }
+
+    fun setProgressColor(@ColorInt color: Int) {
+        progressColorProvider = ConstantColor(color)
+    }
+
+    fun setProgressColorsByRevolution(@Size(min = 1, max = MAX_REVOLUTION_COUNT.toLong()) colors: Iterable<Int>) {
+        progressColorProvider = ColorByRevolution(colors)
+    }
+
+    fun setProgressColorsByIndex(@Size(min = 1, max = MAX_REVOLUTION_COUNT.toLong()) colors: Iterable<Int>) {
+        progressColorProvider = ColorByOrder(colors)
+    }
+
+    private var rawValue = 50f
 
     private inner class ColorF {
 
@@ -63,22 +299,26 @@ class KnobView : View {
         if (before != get()) invalidate()
     }
 
-
     private inner class Revolution(val index: Int) {
 
         private var thicknessFactor = 0f
+        private var thumbActiveness = 0f
         private var radiusFactor = 1f
         private val backgroundColor = ColorF()
         private val foregroundColor = ColorF()
         private val labelColor = ColorF()
 
         fun update(elapsed: Float) {
-            val order = (progressLength - index).previous
+            val order = if (progressLength == 0f && index == 0) 0 else (progressLength - index).previous
             val positiveOrder = max(order, 0)
             run {
                 val target = if (order < 0 && trackLength - index < MIN_COLLAPSING_TRACK_LENGTH) 0f
                 else Math.pow(revolutionThicknessBackoff.d, positiveOrder.d).f
                 ::thicknessFactor.smooth(target, trackLayoutSmoothness, elapsed, THICKNESS_FACTOR_SNAP_THRESHOLD, 0f, 1f)
+            }
+            run {
+                val target = if (order == 0 && thumbEnabled) 1f else 0f
+                ::thumbActiveness.smooth(target, trackLayoutSmoothness, elapsed, 1f / 1000f, 0f, 1f)
             }
             run {
                 val target = Math.pow(revolutionRadiusBackoff.d, positiveOrder.d).f
@@ -91,14 +331,22 @@ class KnobView : View {
             }
         }
 
-        fun finishAnimation() {
-
+        fun finishLayoutSmoothing() {
+            val order = if (progressLength == 0f && index == 0) 0 else (progressLength - index).previous
+            val positiveOrder = max(order, 0)
+            thicknessFactor = if (order < 0 && trackLength - index < MIN_COLLAPSING_TRACK_LENGTH) 0f
+            else Math.pow(revolutionThicknessBackoff.d, positiveOrder.d).f
+            thumbActiveness = if (order == 0 && thumbEnabled) 1f else 0f
+            radiusFactor = Math.pow(revolutionRadiusBackoff.d, positiveOrder.d).f
+            backgroundColor.int = trackColorProvider.provide(this@KnobView, index, order)
+            foregroundColor.int = progressColorProvider.provide(this@KnobView, index, order)
+            labelColor.int = labelColorProvider.provide(this@KnobView, index, order)
         }
 
         fun draw(canvas: Canvas) {
             val center = contentRect.center
             val r = outerTrackRadius * radiusFactor
-            val w = thickness * thicknessFactor
+            val tf = lerp(1f, min(1f, thumbThicknessFactor), thumbActiveness) * thicknessFactor
 
             val minValueLength = lengthByValue(minValue)
             fun getSweep(length: Float) =
@@ -108,14 +356,21 @@ class KnobView : View {
 
             val sign = if (clockwise) -1f else 1f
 
-            canvas.drawTrack(center, r, startAngle, sign * getSweep(trackLength), backgroundColor.int, w * trackThicknessFactor)
-            canvas.drawTrack(center, r, startAngle, sign * getSweep(progressLength), foregroundColor.int, w)
+            canvas.drawTrack(center, r, startAngle, sign * getSweep(trackLength), backgroundColor.int, thickness * tf * trackThicknessFactor)
+            val progressSweep = sign * getSweep(progressLength)
+            canvas.drawTrack(center, r, startAngle, progressSweep, foregroundColor.int, thickness * tf)
+            canvas.drawTrack(center,
+                             r,
+                             startAngle - progressSweep,
+                             0f,
+                             foregroundColor.int,
+                             thickness * max(1f, thumbThicknessFactor) * thumbActiveness)
             if (labelColor.a > 0f && thicknessFactor > 0f) {
                 for (i in 0..(labelThicks - 1)) {
                     val lrl = i.f / labelThicks.f
                     val angle = lrl * 360f
                     val text = labelProvider.provide(this@KnobView, index, i, valueByLength(index + lrl))
-                    canvas.drawLabel(center, r, -startAngle + sign * angle, text, labelColor.int, labelSize * thicknessFactor)
+                    canvas.drawLabel(center, r, -startAngle + sign * angle, text, labelColor.int, labelSize * thicknessFactor, labelFont)
                 }
             }
 
@@ -125,135 +380,8 @@ class KnobView : View {
 
     private val tracks = TRACK_INDICES.map { Revolution(it) }.toTypedArray()
 
-    constructor(context: Context?) : super(context)
-    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
-    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
-
-    companion object {
-        const val MAX_REVOLUTION_COUNT = 3
-        const val GLOBAL_SMOOTHNESS_FACTOR = 1f / 4f
-        private val INPUT_DRAG_ARC_SNAP_THRESHOLD = 60f.dp
-        private const val LENGTH_SNAP_THRESHOLD = 1f / 500f
-        private const val THICKNESS_FACTOR_SNAP_THRESHOLD = 1f / 1000f
-        private const val RADIUS_FACTOR_SNAP_THRESHOLD = 1f / 1000f
-        private const val COLOR_SNAP_THRESHOLD = 2f
-        private const val MIN_COLLAPSING_TRACK_LENGTH = 1f / 4f
-        private const val SCROLL_HOLD_RADIUS_FACTOR = 1f / 2f
-        private const val SCROLL_FACTOR = 1f / 2f
-        private val TRACK_INDICES = 0..(MAX_REVOLUTION_COUNT - 1)
-    }
-
-    var minValue = 0f
-        set(value) {
-            field = value
-            invalidate()
-        }
-    var maxValue = 300f
-        set(value) {
-            field = value
-            invalidate()
-        }
-    var startValue = 0f
-        set(value) {
-            field = value
-            invalidate()
-        }
-    var value: Float
-        get() {
-            if (snap > 0f) {
-                val ticks = ((unsnappedValue - startValue) / snap).roundToInt()
-                return (ticks * snap + startValue).clamp(minValue, maxValue)
-            } else
-                return unsnappedValue
-        }
-        set(value) {
-            unsnappedValue = value
-        }
-    private var unsnappedValue = 50f
-    var revolutionValue = 100f
-        set(value) {
-            field = value
-            invalidate()
-        }
-    @Dimension
-    var thickness = 20f.dp
-    @FloatRange(from = 0.0, to = 1.0)
-    var trackThicknessFactor = 0.9f
-    // degrees, counter-clockwise
-    var startAngle = 30f
-        set(value) {
-            field = value
-            invalidate()
-        }
-    @FloatRange(from = 0.7, to = 1.0)
-    var revolutionRadiusBackoff = 0.9f
-    @FloatRange(from = 0.7, to = 1.0)
-    var revolutionThicknessBackoff = 0.9f
-    @FloatRange(from = 1.0, to = 3.0)
-    var inputThicknessFactor = 3f
-    var scrollable = true
-    var tappable = true
-    var draggable = true
-    @FloatRange(from = 0.0, to = 1.0)
-    var progressSmoothness = 0.4f
-    @FloatRange(from = 0.0, to = 1.0)
-    var trackLayoutSmoothness = 0.4f
-    @FloatRange(from = 0.0, to = 1.0)
-    var trackLengthSmoothness = 0.4f
-    var clockwise = false
-    @FloatRange(from = 0.0)
-    var snap = 10f
-    @IntRange(from = 0, to = 20)
-    var labelThicks = 5
-    var trackColorProvider: ColorProvider = object : ColorProvider {
-        override fun provide(view: KnobView, track: Int, order: Int): Int {
-            return hsv(0f, 0f, 0.1f)
-        }
-    }
-    var progressColorProvider: ColorProvider = object : ColorProvider {
-        override fun provide(view: KnobView, track: Int, order: Int): Int {
-            val a = order / max(MAX_REVOLUTION_COUNT - 1, 1).f
-            return hsv(lerp(180f, 190f, a), lerp(0.75f, 0.5f, a), lerp(0.75f, 0.5f, a))
-        }
-    }
-    var labelColorProvider: ColorProvider = object : ColorProvider {
-        override fun provide(view: KnobView, track: Int, order: Int): Int {
-            return hsv(0f, 0f, 0.8f)
-        }
-    }
-    var labelProvider: LabelProvider = object : LabelProvider {
-        override fun provide(view: KnobView, track: Int, thick: Int, value: Float): String {
-            return thick.toString()
-        }
-    }
-    @Dimension
-    var labelSize = 16f.dp
-
-    interface ColorProvider {
-
-        @ColorInt
-        fun provide(view: KnobView,
-                    @IntRange(from = 0, to = MAX_REVOLUTION_COUNT - 1L) track: Int,
-                    @IntRange(from = -MAX_REVOLUTION_COUNT + 1L, to = MAX_REVOLUTION_COUNT - 1L) order: Int): Int
-
-    }
-
-    interface LabelProvider {
-
-        fun provide(view: KnobView,
-                    @IntRange(from = 0, to = MAX_REVOLUTION_COUNT - 1L) track: Int,
-                    @IntRange(from = 0) thick: Int,
-                    value: Float): String
-
-    }
-
-    // TODO Add thumb (with thickness factor)
-    // TODO Add color helpers
-    // TODO Add default attributeset
-
-
     private fun updateValue(elapsed: Float) {
-        unsnappedValue = unsnappedValue.clamp(minValue, maxValue)
+        rawValue = rawValue.clamp(minValue, maxValue)
         val valueLength = lengthByValue(value)
         val minValueLength = lengthByValue(minValue)
         val maxValueLength = lengthByValue(maxValue)
@@ -264,15 +392,17 @@ class KnobView : View {
         }
     }
 
+    private fun validate() {
+        if (minValue > maxValue) throw IllegalStateException("'${::minValue.name}' cannot be greater than '${::maxValue.name}'")
+        if (startValue > minValue) throw IllegalStateException("'${::startValue.name}' cannot be greater than '${::minValue.name}'")
+        if (revolutionValue <= 0) throw IllegalStateException("'${::revolutionValue.name}' must be positive")
+        if ((maxValue - startValue) / revolutionValue > MAX_REVOLUTION_COUNT) throw IllegalStateException("Revolution count cannot be greater than $MAX_REVOLUTION_COUNT")
+        if (lengthByValue(minValue) >= 1f) throw IllegalStateException("'${::minValue.name}' does not fall inside the first revolution")
+    }
+
     private val animator = TimeAnimator().apply {
         setTimeListener { _, _, elapsedMillis ->
-            // Validation
-            if (minValue > maxValue) throw IllegalStateException("'${::minValue.name}' cannot be greater than '${::maxValue.name}'")
-            if (startValue > minValue) throw IllegalStateException("'${::startValue.name}' cannot be greater than '${::minValue.name}'")
-            if (revolutionValue <= 0) throw IllegalStateException("'${::revolutionValue.name}' must be positive")
-            if ((maxValue - startValue) / revolutionValue > MAX_REVOLUTION_COUNT) throw IllegalStateException("Revolution count cannot be greater than $MAX_REVOLUTION_COUNT")
-            if (lengthByValue(minValue) >= 1f) throw IllegalStateException("'${::minValue.name}' does not fall inside the first revolution")
-            // Update
+            validate()
             val elapsed = elapsedMillis / 1000f
             updateValue(elapsed)
             tracks.forEach { it.update(elapsed) }
@@ -281,19 +411,28 @@ class KnobView : View {
 
     private val contentRect = RectF()
 
-    private var progressLength = unsnappedValue
+    private var progressLength = rawValue
     private var trackLength = 0f
 
     fun finishLayoutSmoothing() {
-
+        tracks.forEach { it.finishLayoutSmoothing() }
+        invalidate()
     }
 
     fun finishValueSmoothing() {
-        progressLength = unsnappedValue
+        progressLength = lengthByValue(value)
+        invalidate()
     }
 
     fun finishTrackSmoothing() {
+        trackLength = max(ceil(lengthByValue(value)), 1f).clamp(progressLength, lengthByValue(maxValue))
+        invalidate()
+    }
 
+    fun finishSmoothing() {
+        finishValueSmoothing()
+        finishTrackSmoothing()
+        finishLayoutSmoothing()
     }
 
     override fun onVisibilityChanged(changedView: View, visibility: Int) {
@@ -337,7 +476,7 @@ class KnobView : View {
         if (d <= maxD) {
             val ua = (angle - startAngle) * if (clockwise) -1f else 1f
             val frl = normalizeAngle(ua) / 360f
-            var lrl = frl + max(lengthByValue(unsnappedValue).previous, 0)
+            var lrl = frl + max(lengthByValue(rawValue).previous, 0)
             if (lrl > lengthByValue(maxValue)) lrl -= 1f
             if (lrl >= lengthByValue(minValue)) return lrl
         }
@@ -345,7 +484,7 @@ class KnobView : View {
     }
 
     private val contentRadius get() = contentRect.width() / 2f
-    private val outerTrackRadius get() = (contentRect.width() - thickness) / 2f
+    private val outerTrackRadius get() = (contentRect.width() - thickness * max(1f, thumbThicknessFactor)) / 2f
 
     val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
 
@@ -367,15 +506,15 @@ class KnobView : View {
                 if (draggable && e2 != null && pickLengthAt(e1, inputThicknessFactor) != null) {
                     val length = pickLengthAt(e2, inputThicknessFactor)
                     if (length != null) {
-                        val unsnappedLength = lengthByValue(unsnappedValue)
+                        val rawLength = lengthByValue(rawValue)
                         val snappedLength = lengthByValue(value)
                         val minLength = lengthByValue(minValue)
                         val maxLength = lengthByValue(maxValue)
                         fun trySet(length: Float): Boolean {
                             if (length >= minLength && length <= maxLength) {
-                                val minDiff = absMin(length - unsnappedLength, length - snappedLength, length - progressLength)
+                                val minDiff = absMin(length - rawLength, length - snappedLength, length - progressLength)
                                 if (minDiff * Math.PI * 2 * outerTrackRadius <= INPUT_DRAG_ARC_SNAP_THRESHOLD) {
-                                    unsnappedValue = valueByLength(length)
+                                    rawValue = valueByLength(length)
                                     return true
                                 }
                             }
@@ -388,7 +527,7 @@ class KnobView : View {
                     val r = contentRadius
                     if (r > 0 && e1.distance <= r * SCROLL_HOLD_RADIUS_FACTOR) {
                         // REVIEW Size relative or absolute dp amount?
-                        unsnappedValue += distanceY / r * SCROLL_FACTOR * revolutionValue
+                        rawValue += distanceY / r * SCROLL_FACTOR * revolutionValue
                         return true
                     }
                 }
@@ -405,7 +544,7 @@ class KnobView : View {
                 val length = pickLengthAt(e, inputThicknessFactor)
                 // TODO Snap to maxValue
                 if (length != null) {
-                    unsnappedValue = valueByLength(length)
+                    rawValue = valueByLength(length)
                     return true
                 }
             }
