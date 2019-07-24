@@ -51,8 +51,10 @@ internal fun Canvas.drawLabel(center: PointF,
                               angle: Float,
                               text: String,
                               @ColorInt color: Int,
-                              @Dimension size: Float) {
+                              @Dimension size: Float,
+                              font: Typeface) {
     if (Color.alpha(color) > 0 && size > 0f) {
+        textPaint.typeface = font
         textPaint.color = color
         textPaint.textSize = size
         val angleRad = Math.toRadians(angle.d).f
