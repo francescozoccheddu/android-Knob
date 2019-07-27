@@ -18,8 +18,17 @@ import kotlin.reflect.KMutableProperty0
 
 class KnobView : View {
 
-    constructor(context: Context?) : super(context)
-    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
+    constructor(context: Context?) : this(context, null)
+    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs) {
+        context?.theme?.obtainStyledAttributes(attrs, R.styleable.KnobView, 0, 0)?.apply {
+            try {
+                // TODO Implement
+            } finally {
+                recycle()
+            }
+        }
+    }
+
     constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
 
     companion object {
@@ -33,7 +42,7 @@ class KnobView : View {
         private const val MIN_COLLAPSING_TRACK_LENGTH = 1f / 4f
         private const val SCROLL_HOLD_RADIUS_FACTOR = 1f / 2f
         private const val SCROLL_FACTOR = 1f / 2f
-        private val TRACK_INDICES = 0..(MAX_REVOLUTION_COUNT - 1)
+        private val TRACK_INDICES = 0 until MAX_REVOLUTION_COUNT
 
         fun makeColorList(@FloatRange(from = 0.0, to = 360.0) fromHue: Float,
                           @FloatRange(from = 0.0, to = 1.0) fromSat: Float,
@@ -45,7 +54,7 @@ class KnobView : View {
                           @FloatRange(from = 0.0, to = 1.0) toAlpha: Float,
                           @IntRange(from = 1, to = MAX_REVOLUTION_COUNT.toLong()) count: Int = MAX_REVOLUTION_COUNT): Iterable<Int> {
             val list = IntArray(count)
-            for (i in 0..(count - 1)) {
+            for (i in 0 until count) {
                 val a = i.f / max(count - 1, 1).f
                 list[i] = hsv(lerp(fromHue, toHue, a), lerp(fromSat, toSat, a), lerp(fromValue, toValue, a), lerp(fromAlpha, toAlpha, a))
             }
@@ -63,7 +72,7 @@ class KnobView : View {
             val toB = Color.blue(to).f
             val toA = Color.alpha(to).f
             val list = IntArray(count)
-            for (i in 0..(count - 1)) {
+            for (i in 0 until count) {
                 val a = i.f / max(count - 1, 1).f
                 list[i] = Color.argb(lerp(fromA, toA, a).roundToInt(),
                                      lerp(fromR, toR, a).roundToInt(),
@@ -92,11 +101,10 @@ class KnobView : View {
         }
     var value: Float
         get() {
-            if (snap > 0f) {
+            return if (snap > 0f) {
                 val ticks = ((rawValue - startValue) / snap).roundToInt()
-                return (ticks * snap + startValue).clamp(minValue, maxValue)
-            } else
-                return rawValue
+                (ticks * snap + startValue).clamp(minValue, maxValue)
+            } else rawValue
         }
         set(value) {
             rawValue = value
@@ -118,7 +126,6 @@ class KnobView : View {
             field = value
             invalidate()
         }
-    // degrees, counter-clockwise
     var startAngle = 90f
         set(value) {
             field = value
@@ -170,7 +177,7 @@ class KnobView : View {
             field = value
             invalidate()
         }
-    var labelFont = Typeface.DEFAULT
+    var labelTypeface: Typeface = Typeface.DEFAULT
         set(value) {
             field = value
             invalidate()
@@ -313,7 +320,7 @@ class KnobView : View {
             val positiveOrder = max(order, 0)
             run {
                 val target = if (order < 0 && trackLength - index < MIN_COLLAPSING_TRACK_LENGTH) 0f
-                else Math.pow(revolutionThicknessBackoff.d, positiveOrder.d).f
+                else revolutionThicknessBackoff.pow(positiveOrder)
                 ::thicknessFactor.smooth(target, trackLayoutSmoothness, elapsed, THICKNESS_FACTOR_SNAP_THRESHOLD, 0f, 1f)
             }
             run {
@@ -321,7 +328,7 @@ class KnobView : View {
                 ::thumbActiveness.smooth(target, trackLayoutSmoothness, elapsed, 1f / 1000f, 0f, 1f)
             }
             run {
-                val target = Math.pow(revolutionRadiusBackoff.d, positiveOrder.d).f
+                val target = revolutionRadiusBackoff.pow(positiveOrder)
                 ::radiusFactor.smooth(target, trackLayoutSmoothness / 2f, elapsed, RADIUS_FACTOR_SNAP_THRESHOLD, 0f, 1f)
             }
             run {
@@ -335,9 +342,9 @@ class KnobView : View {
             val order = if (progressLength == 0f && index == 0) 0 else (progressLength - index).previous
             val positiveOrder = max(order, 0)
             thicknessFactor = if (order < 0 && trackLength - index < MIN_COLLAPSING_TRACK_LENGTH) 0f
-            else Math.pow(revolutionThicknessBackoff.d, positiveOrder.d).f
+            else revolutionThicknessBackoff.pow(positiveOrder)
             thumbActiveness = if (order == 0 && thumbEnabled) 1f else 0f
-            radiusFactor = Math.pow(revolutionRadiusBackoff.d, positiveOrder.d).f
+            radiusFactor = revolutionRadiusBackoff.pow(positiveOrder)
             backgroundColor.int = trackColorProvider.provide(this@KnobView, index, order)
             foregroundColor.int = progressColorProvider.provide(this@KnobView, index, order)
             labelColor.int = labelColorProvider.provide(this@KnobView, index, order)
@@ -366,11 +373,11 @@ class KnobView : View {
                              foregroundColor.int,
                              thickness * max(1f, thumbThicknessFactor) * thumbActiveness)
             if (labelColor.a > 0f && thicknessFactor > 0f) {
-                for (i in 0..(labelThicks - 1)) {
+                for (i in 0 until labelThicks) {
                     val lrl = i.f / labelThicks.f
                     val angle = lrl * 360f
                     val text = labelProvider.provide(this@KnobView, index, i, valueByLength(index + lrl))
-                    canvas.drawLabel(center, r, -startAngle + sign * angle, text, labelColor.int, labelSize * thicknessFactor, labelFont)
+                    canvas.drawThick(center, r, -startAngle + sign * angle, text, labelColor.int, labelSize * thicknessFactor, labelTypeface)
                 }
             }
 
@@ -446,6 +453,7 @@ class KnobView : View {
 
         canvas?.apply {
             tracks.forEach { it.draw(this) }
+            clipTest(contentRect.center, outerTrackRadius, 30f, 130f, thickness)
         }
 
     }
@@ -486,11 +494,10 @@ class KnobView : View {
     private val contentRadius get() = contentRect.width() / 2f
     private val outerTrackRadius get() = (contentRect.width() - thickness * max(1f, thumbThicknessFactor)) / 2f
 
-    val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
 
         private val MotionEvent.offX get() = getX(actionIndex) - contentRect.centerX()
         private val MotionEvent.offY get() = getY(actionIndex) - contentRect.centerY()
-        private val MotionEvent.angle get() = angle(offX, -offY)
         private val MotionEvent.distance get() = length(offX, offY)
 
         private fun pickLengthAt(event: MotionEvent, thicknessFactor: Float): Float? {
@@ -511,7 +518,7 @@ class KnobView : View {
                         val minLength = lengthByValue(minValue)
                         val maxLength = lengthByValue(maxValue)
                         fun trySet(length: Float): Boolean {
-                            if (length >= minLength && length <= maxLength) {
+                            if (length in minLength..maxLength) {
                                 val minDiff = absMin(length - rawLength, length - snappedLength, length - progressLength)
                                 if (minDiff * Math.PI * 2 * outerTrackRadius <= INPUT_DRAG_ARC_SNAP_THRESHOLD) {
                                     rawValue = valueByLength(length)
