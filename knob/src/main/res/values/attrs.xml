@@ -1,26 +1,31 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <resources>
     <declare-styleable name="KnobView">
-        <attr name="minValue" format="float"/>
-        <attr name="maxValue" format="float"/>
-        <attr name="value" format="float"/>
-        <attr name="step" format="float"/>
-        <attr name="snap" format="boolean"/>
-        <attr name="smoothness" format="float"/>
-        <attr name="thickness" format="dimension"/>
-        <attr name="revolutionValue" format="float"/>
-        <attr name="minValidValue" format="float"/>
-        <attr name="maxValidValue" format="float"/>
-        <attr name="revolutionsThickness" format="dimension"/>
-        <attr name="clickable" format="boolean"/>
-        <attr name="trackColor" format="color"/>
-        <attr name="labelColor" format="color"/>
-        <attr name="labelSize" format="dimension"/>
-        <attr name="labelStyle" format="flags">
-            <flag name="normal" value="1"/>
-            <flag name="bold" value="2"/>
-            <flag name="italic" value="4"/>
-        </attr>
-        <attr name="labelFont" format="string"/>
+        <attr name="minValue" format="float" />
+        <attr name="maxValue" format="float" />
+        <attr name="startValue" format="float" />
+        <attr name="startAngle" format="float" />
+        <attr name="value" format="float" />
+        <attr name="revolutionValue" format="float" />
+        <attr name="revolutionRadiusBackoff" format="fraction" />
+        <attr name="revolutionThicknessBackoff" format="fraction" />
+        <attr name="inputThicknessFactor" format="fraction" />
+        <attr name="thickness" format="dimension" />
+        <attr name="trackThicknessFactor" format="fraction" />
+        <attr name="scrollable" format="boolean" />
+        <attr name="tappable" format="boolean" />
+        <attr name="draggable" format="boolean" />
+        <attr name="progressSmoothness" format="fraction" />
+        <attr name="trackLayoutSmoothness" format="fraction" />
+        <attr name="trackLengthSmoothness" format="fraction" />
+        <attr name="clockwise" format="boolean" />
+        <attr name="snap" format="float" />
+        <attr name="labelThicks" format="integer" />
+        <attr name="trackColor" format="color|reference" />
+        <attr name="progressColor" format="color|reference" />
+        <attr name="labelColor" format="color|reference" />
+        <attr name="labelSize" format="dimension" />
+        <attr name="thumbThicknessFactor" format="fraction" />
+        <attr name="thumbEnabled" format="boolean" />
     </declare-styleable>
 </resources>

@@ -8,6 +8,7 @@ import androidx.annotation.FloatRange
 import kotlin.math.cos
 import kotlin.math.sin
 
+
 // Track
 private val trackRect = RectF()
 private val trackPaint = Paint().apply {
@@ -40,29 +41,84 @@ internal fun Canvas.drawTrack(center: PointF,
 
 
 // Labels
-private val textRect = Rect()
-private val textPaint = TextPaint().apply {
+private val tempTextRect = Rect()
+private val tempTextPaint = TextPaint().apply {
     isAntiAlias = true
     textAlign = Paint.Align.CENTER
 }
 
-internal fun Canvas.drawLabel(center: PointF,
+internal fun Canvas.drawThick(center: PointF,
                               @Dimension radius: Float,
                               angle: Float,
                               text: String,
                               @ColorInt color: Int,
                               @Dimension size: Float,
                               font: Typeface) {
+
+    val angleRad = angle.rad
+    val x = cos(angleRad) * radius
+    val y = -sin(angleRad) * radius
+    drawCenteredText(center.x + x, center.y + y, text, color, size, font)
+}
+
+internal fun Canvas.drawCenteredText(x: Float,
+                                     y: Float,
+                                     text: String,
+                                     @ColorInt color: Int,
+                                     @Dimension size: Float,
+                                     font: Typeface) {
     if (Color.alpha(color) > 0 && size > 0f) {
-        textPaint.typeface = font
-        textPaint.color = color
-        textPaint.textSize = size
-        val angleRad = Math.toRadians(angle.d).f
-        val x = cos(angleRad) * radius
-        val y = -sin(angleRad) * radius
-        textPaint.getTextBounds(text, 0, text.length, textRect)
-        drawText(text, center.x + x, center.y + y - textRect.exactCenterY(), textPaint)
+        tempTextPaint.typeface = font
+        tempTextPaint.color = color
+        tempTextPaint.textSize = size
+        tempTextPaint.getTextBounds(text, 0, text.length, tempTextRect)
+        drawText(text, x, y - tempTextRect.exactCenterY(), tempTextPaint)
     }
 }
 
 val RectF.center get() = PointF(centerX(), centerY())
+
+private val Float.rad get() = Math.toRadians(this.d).f
+
+private fun circleBB(x: Float, y: Float, radius: Float) = trackRect.apply {
+    set(x - radius, y - radius, x + radius, y + radius)
+}
+
+
+// Clip
+private val tempPath = Path()
+
+private fun arcPath(center: PointF,
+                    @Dimension radius: Float,
+                    startAngle: Float,
+                    @FloatRange(from = 0.0, to = 360.0) sweep: Float,
+                    @Dimension thickness: Float) = tempPath.apply {
+    val sa = -startAngle
+    val ea = sa + sweep
+    val sar = sa.rad
+    val ear = ea.rad
+    val or = radius + thickness / 2f
+    val ir = radius - thickness / 2f
+    arcTo(circleBB(center.x, center.y, or), sa, sweep)
+    run {
+        val cx = center.x + cos(ear) * radius
+        val cy = center.y + sin(ear) * radius
+        val r = thickness / 2f
+        arcTo(circleBB(cx, cy, r), ea, 180f)
+    }
+    arcTo(circleBB(center.x, center.y, ir), ea, -sweep)
+    run {
+        val cx = center.x + cos(sar) * radius
+        val cy = center.y + sin(sar) * radius
+        val r = thickness / 2f
+        arcTo(circleBB(cx, cy, r), sa + 180f, 180f)
+    }
+    close()
+}
+
+internal fun Canvas.clipTrack(center: PointF,
+                              @Dimension radius: Float,
+                              startAngle: Float,
+                              @FloatRange(from = 0.0, to = 360.0) sweep: Float,
+                              @Dimension thickness: Float) =
+    clipPath(arcPath(center, radius, startAngle, sweep, thickness))
