@@ -78,7 +78,7 @@ class KnobView : View {
 
     }
 
-    var minValue = 100f / 24f * 3
+    var minValue = 0f
         set(value) {
             field = value
             if (rawValue < minValue)
@@ -154,7 +154,7 @@ class KnobView : View {
     var scrollable = true
     var tappable = true
     var draggable = true
-    var clockwise = false
+    var clockwise = true
         set(value) {
             field = value
             invalidate()
@@ -405,7 +405,8 @@ class KnobView : View {
                     if (Color.alpha(color) > 0 && progressThickness > 0f && labelThicks > 0) {
                         var clip = false
                         val interspace = (1f / labelThicks)
-                        val range = run {
+                        val range = if (startLength <= 0.0f && endLength >= 1.0f) 0 until labelThicks
+                        else run {
                             fun getEndPoint(length: Float, start: Boolean): Int {
                                 val p = if (start)
                                     max(((length - THICK_CULLING_LENGHT_PADDING) / interspace).ceilToInt(), 0)

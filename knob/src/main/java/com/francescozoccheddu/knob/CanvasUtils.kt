@@ -92,26 +92,30 @@ private fun arcPath(center: PointF,
                     sweep: Float,
                     thickness: Float) = tempPath.apply {
     tempPath.reset()
-    val sa = if (sweep > 0f) startAngle else (startAngle + sweep)
     val w = abs(sweep)
-    val ea = sa + abs(sweep)
-    val sar = sa.rad
-    val ear = ea.rad
     val or = radius + thickness / 2f
-    val ir = radius - thickness / 2f
-    arcTo(circleBB(center.x, center.y, or), -sa, -w)
-    run {
-        val cx = center.x + cos(ear) * radius
-        val cy = center.y - sin(ear) * radius
-        val r = thickness / 2f
-        arcTo(circleBB(cx, cy, r), -ea, -180f)
-    }
-    arcTo(circleBB(center.x, center.y, ir), -ea, w)
-    run {
-        val cx = center.x + cos(sar) * radius
-        val cy = center.y - sin(sar) * radius
-        val r = thickness / 2f
-        arcTo(circleBB(cx, cy, r), -sa + 180f, -180f)
+    if (w >= 360f) {
+        addCircle(center.x, center.y, or, Path.Direction.CW)
+    } else {
+        val sa = if (sweep > 0f) startAngle else (startAngle + sweep)
+        val ea = sa + abs(sweep)
+        val sar = sa.rad
+        val ear = ea.rad
+        val ir = radius - thickness / 2f
+        arcTo(circleBB(center.x, center.y, or), -sa, -w)
+        run {
+            val cx = center.x + cos(ear) * radius
+            val cy = center.y - sin(ear) * radius
+            val r = thickness / 2f
+            arcTo(circleBB(cx, cy, r), -ea, -180f)
+        }
+        arcTo(circleBB(center.x, center.y, ir), -ea, w)
+        run {
+            val cx = center.x + cos(sar) * radius
+            val cy = center.y - sin(sar) * radius
+            val r = thickness / 2f
+            arcTo(circleBB(cx, cy, r), -sa + 180f, -180f)
+        }
     }
     close()
 }
