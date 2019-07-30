@@ -154,7 +154,7 @@ class KnobView : View {
     var scrollable = true
     var tappable = true
     var draggable = true
-    var clockwise = true
+    var clockwise = false
         set(value) {
             field = value
             invalidate()
@@ -169,7 +169,7 @@ class KnobView : View {
         }
     var trackColorProvider: ColorProvider = ConstantColor(hsv(0f, 0f, 0.1f))
     var progressColorProvider: ColorProvider = ColorByOrder(makeColorList(180f, 0.75f, 0.75f, 1f, 190f, 0.5f, 0.5f, 1f, 3))
-    var labelBackgroundColorProvider: ColorProvider = ColorByOrder(listOf(Color.DKGRAY, Color.TRANSPARENT))
+    var labelBackgroundColorProvider: ColorProvider? = ColorByOrder(listOf(Color.DKGRAY, Color.TRANSPARENT))
     var labelForegroundColorProvider: ColorProvider = ColorByOrder(listOf(Color.WHITE, Color.TRANSPARENT))
     var labelProvider: LabelProvider = object : LabelProvider {
         override fun provide(view: KnobView, revolution: Int, thick: Int, value: Float): String {
@@ -323,17 +323,14 @@ class KnobView : View {
     }
     private var trackLength by ABFloat(0f).apply {
         onUpdate = {
-            order = max(it.value.previous, 0).f
+            order = max(it.value.nextDown().toInt(), 0).f
             invalidate()
         }
         interpolator = DecelerateInterpolator()
         speed = 4f
     }
     private var progressLength by SmoothFloat(0f).apply {
-        onUpdate = {
-            trackLength = min(max(ceil(it.value), 1f), lengthByValue(maxValue))
-            invalidate()
-        }
+        onUpdate = { invalidate() }
         smoothness = 0.1f
         snap = 0.01f
     }
@@ -365,7 +362,9 @@ class KnobView : View {
     }
 
     private fun updateLength() {
-        progressLength = lengthByValue(value)
+        val length = lengthByValue(value)
+        progressLength = length
+        trackLength = min(max(ceil(length), 1f), lengthByValue(maxValue))
     }
 
     init {
@@ -384,13 +383,13 @@ class KnobView : View {
                 val orderCount = order.ceilToInt();
                 max(0, orderCount - MAX_REVOLUTIONS)..orderCount
             }) {
-                val alpha = min(order - t + 1f, 1f)
-                fun getSweep(length: Float) = (if (t == 0) min(length, 1f) - minValueLength else (length - t).clamp01) * 360f
-                val startLength = if (t == 0) minValueLength else 0f
-                val trackStartAngle = startLength * 360f * angleSign + startAngle
                 val prevOrder = (order - t).floorToInt()
                 val prevPositiveOrder = max(0, prevOrder)
                 val nextOrder = (order - t).ceilToInt()
+                val alpha = order - floor(order)
+                fun getSweep(length: Float) = (if (t == 0) min(length, 1f) - minValueLength else (length - t).clamp01) * 360f
+                val startLength = if (t == 0) minValueLength else 0f
+                val trackStartAngle = startLength * 360f * angleSign + startAngle
                 val radius = lerp(radiusFactorProvider(this@KnobView, t, prevPositiveOrder),
                                   radiusFactorProvider(this@KnobView, t, nextOrder), alpha) * outerTrackRadius
                 val thicknessFactor = lerp(if (prevOrder >= 0) thicknessFactorProvider(this@KnobView, t, prevOrder) else 0f,
@@ -432,11 +431,16 @@ class KnobView : View {
                     }
                 }
 
-                val labelBackgroundColor = lerpColor(labelBackgroundColorProvider(this@KnobView, t, prevPositiveOrder),
-                                                     labelBackgroundColorProvider(this@KnobView, t, nextOrder), alpha)
+                val labelBackgroundColor = run {
+                    val provider = labelBackgroundColorProvider
+                    if (provider != null)
+                        lerpColor(provider(this@KnobView, t, prevPositiveOrder),
+                                  provider(this@KnobView, t, nextOrder), alpha)
+                    else Color.TRANSPARENT
+                }
                 val labelForegroundColor = lerpColor(labelForegroundColorProvider(this@KnobView, t, prevPositiveOrder),
                                                      labelForegroundColorProvider(this@KnobView, t, nextOrder), alpha)
-                val singlePassLabel = run {
+                val singlePassLabel = labelBackgroundColorProvider == null || run {
                     val bg = labelBackgroundColor
                     val fg = labelForegroundColor
                     fg.alpha == 255 && fg.red == bg.red && fg.green == bg.green && fg.blue == bg.blue
@@ -472,8 +476,8 @@ class KnobView : View {
                 }
             }
         }
-
     }
+
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
@@ -501,7 +505,7 @@ class KnobView : View {
         if (d <= maxD) {
             val ua = (angle - startAngle) * if (clockwise) -1f else 1f
             val frl = normalizeAngle(ua) / 360f
-            var lrl = frl + max(lengthByValue(rawValue).previous, 0)
+            var lrl = frl + max(lengthByValue(rawValue).nextDown().toInt(), 0)
             if (lrl > lengthByValue(maxValue)) lrl -= 1f
             if (lrl >= lengthByValue(minValue)) return lrl
         }
@@ -566,7 +570,6 @@ class KnobView : View {
         override fun onSingleTapUp(e: MotionEvent?): Boolean {
             if (tappable && e != null) {
                 val length = pickLengthAt(e, inputThicknessFactor)
-                // TODO Snap to maxValue
                 if (length != null) {
                     rawValue = valueByLength(length)
                     return true
