@@ -3,27 +3,41 @@ package com.francescozoccheddu.knob
 import android.content.res.Resources
 import android.graphics.Color
 import android.util.TypedValue
-import androidx.annotation.FloatRange
 import kotlin.math.*
 
 internal val Float.dp
     get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, this, Resources.getSystem().displayMetrics)
 
-internal fun hsv(@FloatRange(from = 0.0, to = 360.0) hue: Float, @FloatRange(from = 0.0, to = 1.0) saturation: Float,
-                 @FloatRange(from = 0.0, to = 1.0)
-                 value: Float, @FloatRange(from = 0.0, to = 1.0) alpha: Float = 1f) =
+internal fun hsv(hue: Float, saturation: Float,
+                 value: Float, alpha: Float = 1f) =
     Color.HSVToColor((alpha * 255).roundToInt(), floatArrayOf(hue, saturation, value))
 
-internal fun smooth(current: Float, target: Float, @FloatRange(from = 0.0) smoothness: Float, @FloatRange(from = 0.0) elapsedTime: Float): Float =
+internal fun smooth(current: Float, target: Float, smoothness: Float, elapsedTime: Float): Float =
     if (smoothness == 0f) target else lerp(current, target, min(elapsedTime / smoothness, 1f))
 
 internal fun lerp(from: Float, to: Float, progress: Float) = from * (1 - progress) + to * progress
 
+internal fun lerpColor(from: Int, to: Int, progress: Float): Int {
+    val r = lerp(from.red.f, to.red.f, progress).roundToInt()
+    val g = lerp(from.green.f, to.green.f, progress).roundToInt()
+    val b = lerp(from.blue.f, to.blue.f, progress).roundToInt()
+    val a = lerp(from.alpha.f, to.alpha.f, progress).roundToInt()
+    return Color.argb(a, r, g, b)
+}
+
+internal val Int.red get() = Color.red(this)
+internal val Int.green get() = Color.green(this)
+internal val Int.blue get() = Color.blue(this)
+internal val Int.alpha get() = Color.alpha(this)
+
 internal fun Float.clamp(min: Float, max: Float) = if (this < min) min else if (this > max) max else this
 
-internal fun Float.ceilToInt() = ceil(this).toInt()
+internal val Float.clamp01 get() = clamp(0f, 1f)
 
-internal fun Float.snap(target: Float, @FloatRange(from = 0.0) threshold: Float) = if (abs(this - target) <= threshold) target else this
+internal fun Float.ceilToInt() = ceil(this).toInt()
+internal fun Float.floorToInt() = floor(this).toInt()
+
+internal fun Float.snap(target: Float, threshold: Float) = if (abs(this - target) <= threshold) target else this
 
 internal val Int.f get() = toFloat()
 internal val Int.d get() = toDouble()
