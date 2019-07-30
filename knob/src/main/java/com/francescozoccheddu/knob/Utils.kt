@@ -8,12 +8,15 @@ import kotlin.math.*
 internal val Float.dp
     get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, this, Resources.getSystem().displayMetrics)
 
+private val tempHsvArray = FloatArray(3)
+
 internal fun hsv(hue: Float, saturation: Float,
                  value: Float, alpha: Float = 1f) =
-    Color.HSVToColor((alpha * 255).roundToInt(), floatArrayOf(hue, saturation, value))
-
-internal fun smooth(current: Float, target: Float, smoothness: Float, elapsedTime: Float): Float =
-    if (smoothness == 0f) target else lerp(current, target, min(elapsedTime / smoothness, 1f))
+    Color.HSVToColor((alpha * 255).roundToInt(), tempHsvArray.apply {
+        this[0] = hue
+        this[1] = saturation
+        this[2] = value
+    })
 
 internal fun lerp(from: Float, to: Float, progress: Float) = from * (1 - progress) + to * progress
 
@@ -39,14 +42,9 @@ internal val Float.clamp01 get() = clamp(0f, 1f)
 internal fun Float.ceilToInt() = ceil(this).toInt()
 internal fun Float.floorToInt() = floor(this).toInt()
 
-internal fun Float.snap(target: Float, threshold: Float) = if (abs(this - target) <= threshold) target else this
-
 internal val Int.f get() = toFloat()
-internal val Int.d get() = toDouble()
 internal val Float.d get() = toDouble()
 internal val Double.f get() = toFloat()
-
-internal fun distance(ax: Float, bx: Float, ay: Float, by: Float) = length(ax - bx, ay - by)
 
 internal fun length(x: Float, y: Float) = sqrt(x * x + y * y)
 

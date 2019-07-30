@@ -51,12 +51,12 @@ internal fun Canvas.drawThick(center: PointF,
                               text: String,
                               color: Int,
                               size: Float,
-                              font: Typeface) {
+                              typeface: Typeface) {
 
     val angleRad = angle.rad
     val x = cos(angleRad) * radius
     val y = -sin(angleRad) * radius
-    drawCenteredText(center.x + x, center.y + y, text, color, size, font)
+    drawCenteredText(center.x + x, center.y + y, text, color, size, typeface)
 }
 
 internal fun Canvas.drawCenteredText(x: Float,
@@ -64,9 +64,9 @@ internal fun Canvas.drawCenteredText(x: Float,
                                      text: String,
                                      color: Int,
                                      size: Float,
-                                     font: Typeface) {
+                                     typeface: Typeface) {
     if (Color.alpha(color) > 0 && size > 0f) {
-        tempTextPaint.typeface = font
+        tempTextPaint.typeface = typeface
         tempTextPaint.color = color
         tempTextPaint.textSize = size
         tempTextPaint.getTextBounds(text, 0, text.length, tempTextRect)

@@ -102,10 +102,6 @@ class RGBCurveColorProvider : KnobView.ColorProvider {
 
 class HSVCurveColorProvider : KnobView.ColorProvider {
 
-    private companion object {
-        private val hsv = FloatArray(3)
-    }
-
     @FloatRange(from = 0.0, to = 360.0)
     var fromHue = 0f
     @FloatRange(from = 0.0, to = 1.0)
@@ -127,18 +123,18 @@ class HSVCurveColorProvider : KnobView.ColorProvider {
 
     override fun provide(view: KnobView, revolution: Int, order: Int): Int {
         val progress = interpolator.getInterpolation(indexingMode.provide(revolution, order).f / max(view.revolutionCount - 1, 1))
-        hsv[0] = lerp(fromHue, toHue, progress)
-        hsv[1] = lerp(fromSaturation, toSaturation, progress)
-        hsv[2] = lerp(fromValue, toValue, progress)
-        val a = (lerp(fromAlpha, toAlpha, progress) * 255f).roundToInt()
-        return Color.HSVToColor(a, hsv)
+        val h = lerp(fromHue, toHue, progress)
+        val s = lerp(fromSaturation, toSaturation, progress)
+        val v = lerp(fromValue, toValue, progress)
+        val a = lerp(fromAlpha, toAlpha, progress)
+        return hsv(h, s, v, a)
     }
 
 }
 
-// Label
+// Thicks
 
-class ValueLabelProvider : KnobView.LabelProvider {
+class ValueThickProvider : KnobView.ThickProvider {
 
     @IntRange(from = 0L, to = 4L)
     var decimalPlaces = 0
@@ -154,19 +150,43 @@ class ValueLabelProvider : KnobView.LabelProvider {
 
 }
 
-class PercentageLabelProvider : KnobView.LabelProvider {
+class PercentageThickProvider : KnobView.ThickProvider {
     override fun provide(view: KnobView, revolution: Int, thick: Int, value: Float) =
         "${((value - view.startValue) / (view.maxValue - view.startValue) * 100f).roundToInt()}%"
 
 }
 
-class LabelListProvider : KnobView.LabelProvider {
+class ThickListProvider : KnobView.ThickProvider {
 
-    val labels = mutableListOf<String>()
+    val thicks = mutableListOf<String>()
     var restartOnRevolution = true
 
     override fun provide(view: KnobView, revolution: Int, thick: Int, value: Float) =
-        if (restartOnRevolution) labels[thick + view.labelThicks * revolution]
-        else labels[thick]
+        if (restartOnRevolution) thicks[thick + view.thicks * revolution]
+        else thicks[thick]
+
+}
+
+// Label
+
+class ValueLabelProvider : KnobView.LabelProvider {
+
+    @IntRange(from = 0L, to = 4L)
+    var decimalPlaces = 0
+    @Size(min = 0, max = 3)
+    var prefix = ""
+    @Size(min = 0, max = 3)
+    var suffix = ""
+
+    override fun provide(view: KnobView, value: Float): String {
+        val rounded = BigDecimal(value.d).setScale(decimalPlaces, RoundingMode.HALF_UP)
+        return "$prefix$rounded$suffix"
+    }
+
+}
+
+class PercentageLabelProvider : KnobView.LabelProvider {
+    override fun provide(view: KnobView, value: Float) =
+        "${((value - view.startValue) / (view.maxValue - view.startValue) * 100f).roundToInt()}%"
 
 }

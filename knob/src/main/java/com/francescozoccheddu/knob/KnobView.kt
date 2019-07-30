@@ -133,10 +133,10 @@ class KnobView : View {
             invalidate()
         }
     @IntRange(from = 0, to = 20)
-    var labelThicks = 10
+    var thicks = 10
         set(value) {
             if (value !in 0..12)
-                throw IllegalArgumentException("'${::labelThicks.name}' does not fall in [0,12] range")
+                throw IllegalArgumentException("'${::thicks.name}' does not fall in [0,12] range")
             field = value
             invalidate()
         }
@@ -151,21 +151,34 @@ class KnobView : View {
         toValue = 0.5f
         toAlpha = 1f
     }
-    var labelBackgroundColorProvider: ColorProvider? = ListColorProvider().apply {
+    var thickBackgroundColorProvider: ColorProvider? = ListColorProvider().apply {
         colors += Color.DKGRAY
         colors += Color.TRANSPARENT
     }
-    var labelForegroundColorProvider: ColorProvider = ListColorProvider().apply {
+    var thickForegroundColorProvider: ColorProvider = ListColorProvider().apply {
         colors += Color.WHITE
         colors += Color.TRANSPARENT
     }
-    var labelProvider: LabelProvider = ValueLabelProvider()
+    var thickProvider: ThickProvider = ValueThickProvider()
         set(value) {
             field = value
             invalidate()
         }
     @Dimension
-    var labelSize = 16f.dp
+    var thickSize = 16f.dp
+        set(value) {
+            if (value < 0.0f)
+                throw IllegalArgumentException("'${::thickSize.name}' cannot be negative")
+            field = value
+            invalidate()
+        }
+    var thickTypeface: Typeface = Typeface.DEFAULT
+        set(value) {
+            field = value
+            invalidate()
+        }
+    @Dimension
+    var labelSize = 0f
         set(value) {
             if (value < 0.0f)
                 throw IllegalArgumentException("'${::labelSize.name}' cannot be negative")
@@ -177,6 +190,9 @@ class KnobView : View {
             field = value
             invalidate()
         }
+    @ColorInt
+    var labelColor = Color.WHITE
+    var labelProvider = ValueLabelProvider()
     @FloatRange(from = 0.0, to = 2.0)
     var thumbThicknessFactor = 0.75f
         set(value) {
@@ -205,12 +221,18 @@ class KnobView : View {
                     order: Int): Int
     }
 
-    interface LabelProvider {
+    interface ThickProvider {
 
         fun provide(view: KnobView,
                     @IntRange(from = 0) revolution: Int,
                     @IntRange(from = 0) thick: Int,
                     value: Float): String
+
+    }
+
+    interface LabelProvider {
+
+        fun provide(view: KnobView, value: Float): String
 
     }
 
@@ -225,9 +247,11 @@ class KnobView : View {
     private operator fun ColorProvider.invoke(@IntRange(from = 0) revolution: Int,
                                               order: Int): Int = provide(this@KnobView, revolution, order)
 
-    private operator fun LabelProvider.invoke(@IntRange(from = 0) revolution: Int,
+    private operator fun ThickProvider.invoke(@IntRange(from = 0) revolution: Int,
                                               @IntRange(from = 0) thick: Int,
                                               value: Float): String = provide(this@KnobView, revolution, thick, value)
+
+    private operator fun LabelProvider.invoke(): String = provide(this@KnobView, value)
 
     private operator fun FactorProvider.invoke(@IntRange(from = 0) revolution: Int,
                                                order: Int): Float = provide(this@KnobView, revolution, order)
@@ -314,16 +338,17 @@ class KnobView : View {
                                endLength: Float,
                                color: Int,
                                trackThickness: Float) {
-                    if (Color.alpha(color) > 0 && progressThickness > 0f && labelThicks > 0) {
+                    val thickSize = thickSize * thicknessFactor
+                    if (color.alpha > 0 && thickSize > 0f && thicks > 0) {
                         var clip = false
-                        val interspace = (1f / labelThicks)
-                        val range = if (startLength <= 0.0f && endLength >= 1.0f) 0 until labelThicks
+                        val interspace = (1f / thicks)
+                        val range = if (startLength <= 0.0f && endLength >= 1.0f) 0 until thicks
                         else run {
                             fun getEndPoint(length: Float, start: Boolean): Int {
                                 val p = if (start)
                                     max(((length - THICK_CULLING_LENGHT_PADDING) / interspace).ceilToInt(), 0)
                                 else
-                                    min(((length + THICK_CULLING_LENGHT_PADDING) / interspace).floorToInt(), labelThicks - 1)
+                                    min(((length + THICK_CULLING_LENGHT_PADDING) / interspace).floorToInt(), thicks - 1)
                                 clip = clip || abs(p * interspace - length) <= THICK_CULLING_LENGHT_PADDING
                                 return p
                             }
@@ -336,26 +361,26 @@ class KnobView : View {
                         for (thick in range) {
                             val length = interspace * thick
                             val angle = startAngle + length * 360f * angleSign
-                            val text = labelProvider(t, thick, valueByLength(t + length))
-                            drawThick(center, radius, angle, text, color, labelSize * thicknessFactor, labelTypeface)
+                            val text = thickProvider(t, thick, valueByLength(t + length))
+                            drawThick(center, radius, angle, text, color, thickSize, thickTypeface)
                         }
                         if (clip)
                             restore()
                     }
                 }
 
-                val labelBackgroundColor = run {
-                    val provider = labelBackgroundColorProvider
+                val thickBackgroundColor = run {
+                    val provider = thickBackgroundColorProvider
                     if (provider != null)
                         lerpColor(provider(t, prevPositiveOrder),
                                   provider(t, nextOrder), alpha)
                     else Color.TRANSPARENT
                 }
-                val labelForegroundColor = lerpColor(labelForegroundColorProvider(t, prevPositiveOrder),
-                                                     labelForegroundColorProvider(t, nextOrder), alpha)
-                val singlePassLabel = labelBackgroundColorProvider == null || run {
-                    val bg = labelBackgroundColor
-                    val fg = labelForegroundColor
+                val thickForegroundColor = lerpColor(thickForegroundColorProvider(t, prevPositiveOrder),
+                                                     thickForegroundColorProvider(t, nextOrder), alpha)
+                val singlePassThicks = thickBackgroundColorProvider == null || run {
+                    val bg = thickBackgroundColor
+                    val fg = thickForegroundColor
                     fg.alpha == 255 && fg.red == bg.red && fg.green == bg.green && fg.blue == bg.blue
                 }
 
@@ -368,10 +393,10 @@ class KnobView : View {
                 run {
                     val progressColor = lerpColor(progressColorProvider(t, prevPositiveOrder),
                                                   progressColorProvider(t, nextOrder), alpha)
-                    // Background labels
-                    if (!singlePassLabel) {
+                    // Background thicks
+                    if (!singlePassThicks) {
                         val thicksStartLength = if (progressColor.alpha < 255) startLength else max((progressLength - t), 0f)
-                        drawThicks(thicksStartLength, max(trackLength - t, 0f), labelBackgroundColor, progressThickness * trackThicknessFactor)
+                        drawThicks(thicksStartLength, max(trackLength - t, 0f), thickBackgroundColor, progressThickness * trackThicknessFactor)
                     }
                     // Progress
                     val sweep = getSweep(progressLength) * angleSign
@@ -383,10 +408,15 @@ class KnobView : View {
                     }
                 }
                 run {
-                    // Foreground labels
-                    val endLength = if (singlePassLabel) max(progressLength, trackLength) else progressLength
-                    drawThicks(startLength, max(endLength - t, 0f), labelForegroundColor, progressThickness)
+                    // Foreground thicks
+                    val endLength = if (singlePassThicks) max(progressLength, trackLength) else progressLength
+                    drawThicks(startLength, max(endLength - t, 0f), thickForegroundColor, progressThickness)
                 }
+            }
+
+            run {
+                // Label
+                drawCenteredText(center.x, center.y, labelProvider(), labelColor, labelSize, labelTypeface)
             }
         }
     }
