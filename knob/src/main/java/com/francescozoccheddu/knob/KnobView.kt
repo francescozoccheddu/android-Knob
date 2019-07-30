@@ -26,16 +26,12 @@ class KnobView : View {
     constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
 
     companion object {
-        private const val MAX_REVOLUTIONS = 3
-        const val GLOBAL_SMOOTHNESS_FACTOR = 1f / 4f
+        private const val MAX_REVOLUTIONS = 4
+        private val SCROLL_REASONABLE_RADIUS = 128f.dp
+        private const val SCROLL_REASONABLE_RADIUS_FACTOR = 0.5f
         private val INPUT_DRAG_ARC_SNAP_THRESHOLD = 60f.dp
-        private const val LENGTH_SNAP_THRESHOLD = 1f / 500f
-        private const val THICKNESS_FACTOR_SNAP_THRESHOLD = 1f / 1000f
-        private const val RADIUS_FACTOR_SNAP_THRESHOLD = 1f / 1000f
-        private const val COLOR_SNAP_THRESHOLD = 2f
-        private const val MIN_COLLAPSING_TRACK_LENGTH = 1f / 4f
         private const val SCROLL_HOLD_RADIUS_FACTOR = 1f / 2f
-        private const val SCROLL_FACTOR = 1f / 2f
+        private const val RADIUS_SCROLL_FACTOR = 1f
         private const val THICK_CULLING_LENGHT_PADDING = 1f / 10f
     }
 
@@ -118,7 +114,8 @@ class KnobView : View {
             field = value
             invalidate()
         }
-    var scrollable = true
+    var scrollableY = true
+    var scrollableX = false
     var tappable = true
     var draggable = true
     var clockwise = true
@@ -467,11 +464,14 @@ class KnobView : View {
                         // TODO Choose closest
                         return trySet(length) || trySet(length + 1f) || trySet(length - 1f)
                     }
-                } else if (scrollable) {
+                } else if (scrollableX || scrollableY) {
                     val r = contentRadius
                     if (r > 0 && e1.distance <= r * SCROLL_HOLD_RADIUS_FACTOR) {
-                        // REVIEW Size relative or absolute dp amount?
-                        rawValue += distanceY / r * SCROLL_FACTOR * revolutionValue
+                        val factor = RADIUS_SCROLL_FACTOR * revolutionValue / lerp(r, SCROLL_REASONABLE_RADIUS, SCROLL_REASONABLE_RADIUS_FACTOR)
+                        if (scrollableX)
+                            rawValue += distanceX * factor
+                        if (scrollableY)
+                            rawValue += distanceY * factor
                         return true
                     }
                 }
@@ -531,6 +531,10 @@ class KnobView : View {
             }
             KeyEvent.KEYCODE_MOVE_END -> {
                 rawValue = maxValue
+                true
+            }
+            KeyEvent.KEYCODE_ESCAPE -> {
+                clearFocus()
                 true
             }
             else -> super.onKeyUp(keyCode, event)

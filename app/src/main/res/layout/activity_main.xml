@@ -9,6 +9,7 @@
     
     <com.francescozoccheddu.knob.KnobView
         android:id="@+id/knob"
+        android:defaultFocusHighlightEnabled="false"
         android:layout_width="256dp"
         android:layout_height="256dp"
         android:layout_margin="20dp" />
