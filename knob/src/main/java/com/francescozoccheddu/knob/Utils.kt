@@ -32,6 +32,8 @@ internal val Int.alpha get() = Color.alpha(this)
 
 internal fun Float.clamp(min: Float, max: Float) = if (this < min) min else if (this > max) max else this
 
+internal fun Int.clamp(min: Int, max: Int) = if (this < min) min else if (this > max) max else this
+
 internal val Float.clamp01 get() = clamp(0f, 1f)
 
 internal fun Float.ceilToInt() = ceil(this).toInt()
@@ -71,6 +73,15 @@ internal val Float.previous: Int
             return floor.toInt() - 1
         else
             return floor.toInt()
+    }
+
+internal val Float.next: Int
+    get() {
+        val ceil = ceil(this)
+        if (ceil == this)
+            return ceil.toInt() + 1
+        else
+            return ceil.toInt()
     }
 
 internal fun absMin(vararg values: Float) = values.map(::abs).min()!!
