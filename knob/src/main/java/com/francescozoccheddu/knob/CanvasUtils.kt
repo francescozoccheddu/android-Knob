@@ -2,9 +2,7 @@ package com.francescozoccheddu.knob
 
 import android.graphics.*
 import android.text.TextPaint
-import androidx.annotation.ColorInt
-import androidx.annotation.Dimension
-import androidx.annotation.FloatRange
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -19,19 +17,19 @@ private val trackPaint = Paint().apply {
 }
 
 internal fun Canvas.drawTrack(center: PointF,
-                              @Dimension radius: Float,
+                              radius: Float,
                               startAngle: Float,
-                              @FloatRange(from = 0.0, to = 360.0) sweep: Float,
-                              @ColorInt color: Int,
-                              @Dimension thickness: Float) {
+                              sweep: Float,
+                              color: Int,
+                              thickness: Float) {
     if (Color.alpha(color) > 0 && thickness > 0f) {
         trackRect.set(center.x - radius, center.y - radius, center.x + radius, center.y + radius)
         trackPaint.strokeWidth = thickness
         trackPaint.color = color
         if (sweep != 0f) {
-            drawArc(trackRect, startAngle, -sweep, false, trackPaint)
+            drawArc(trackRect, -startAngle, -sweep, false, trackPaint)
         } else {
-            val arcStartRad = Math.toRadians(-startAngle.d).f
+            val arcStartRad = startAngle.rad
             val x = cos(arcStartRad) * radius
             val y = -sin(arcStartRad) * radius
             drawPoint(center.x + x, center.y + y, trackPaint)
@@ -48,11 +46,11 @@ private val tempTextPaint = TextPaint().apply {
 }
 
 internal fun Canvas.drawThick(center: PointF,
-                              @Dimension radius: Float,
+                              radius: Float,
                               angle: Float,
                               text: String,
-                              @ColorInt color: Int,
-                              @Dimension size: Float,
+                              color: Int,
+                              size: Float,
                               font: Typeface) {
 
     val angleRad = angle.rad
@@ -64,8 +62,8 @@ internal fun Canvas.drawThick(center: PointF,
 internal fun Canvas.drawCenteredText(x: Float,
                                      y: Float,
                                      text: String,
-                                     @ColorInt color: Int,
-                                     @Dimension size: Float,
+                                     color: Int,
+                                     size: Float,
                                      font: Typeface) {
     if (Color.alpha(color) > 0 && size > 0f) {
         tempTextPaint.typeface = font
@@ -89,36 +87,38 @@ private fun circleBB(x: Float, y: Float, radius: Float) = trackRect.apply {
 private val tempPath = Path()
 
 private fun arcPath(center: PointF,
-                    @Dimension radius: Float,
+                    radius: Float,
                     startAngle: Float,
-                    @FloatRange(from = 0.0, to = 360.0) sweep: Float,
-                    @Dimension thickness: Float) = tempPath.apply {
-    val sa = -startAngle
-    val ea = sa + sweep
+                    sweep: Float,
+                    thickness: Float) = tempPath.apply {
+    tempPath.reset()
+    val sa = if (sweep > 0f) startAngle else (startAngle + sweep)
+    val w = abs(sweep)
+    val ea = sa + abs(sweep)
     val sar = sa.rad
     val ear = ea.rad
     val or = radius + thickness / 2f
     val ir = radius - thickness / 2f
-    arcTo(circleBB(center.x, center.y, or), sa, sweep)
+    arcTo(circleBB(center.x, center.y, or), -sa, -w)
     run {
         val cx = center.x + cos(ear) * radius
-        val cy = center.y + sin(ear) * radius
+        val cy = center.y - sin(ear) * radius
         val r = thickness / 2f
-        arcTo(circleBB(cx, cy, r), ea, 180f)
+        arcTo(circleBB(cx, cy, r), -ea, -180f)
     }
-    arcTo(circleBB(center.x, center.y, ir), ea, -sweep)
+    arcTo(circleBB(center.x, center.y, ir), -ea, w)
     run {
         val cx = center.x + cos(sar) * radius
-        val cy = center.y + sin(sar) * radius
+        val cy = center.y - sin(sar) * radius
         val r = thickness / 2f
-        arcTo(circleBB(cx, cy, r), sa + 180f, 180f)
+        arcTo(circleBB(cx, cy, r), -sa + 180f, -180f)
     }
     close()
 }
 
 internal fun Canvas.clipTrack(center: PointF,
-                              @Dimension radius: Float,
+                              radius: Float,
                               startAngle: Float,
-                              @FloatRange(from = 0.0, to = 360.0) sweep: Float,
-                              @Dimension thickness: Float) =
+                              sweep: Float,
+                              thickness: Float) =
     clipPath(arcPath(center, radius, startAngle, sweep, thickness))
