@@ -49,11 +49,11 @@ internal val Double.f get() = toFloat()
 internal fun length(x: Float, y: Float) = sqrt(x * x + y * y)
 
 internal fun angle(x: Float, y: Float): Float {
-    if (y == 0f) {
-        return if (x >= 0) 0f else 180f
+    return if (y == 0f) {
+        if (x >= 0) 0f else 180f
     } else {
         val ra = Math.toDegrees(atan(y.d / x.d)).f
-        return if (x >= 0) {
+        if (x >= 0) {
             if (y > 0) ra else 360f + ra
         } else 180f + ra
     }
@@ -67,19 +67,19 @@ internal fun normalizeAngle(angle: Float): Float {
 internal val Float.previous: Int
     get() {
         val floor = floor(this)
-        if (floor == this)
-            return floor.toInt() - 1
+        return if (floor == this)
+            floor.toInt() - 1
         else
-            return floor.toInt()
+            floor.toInt()
     }
 
 internal val Float.next: Int
     get() {
         val ceil = ceil(this)
-        if (ceil == this)
-            return ceil.toInt() + 1
+        return if (ceil == this)
+            ceil.toInt() + 1
         else
-            return ceil.toInt()
+            ceil.toInt()
     }
 
 internal fun absMin(vararg values: Float) = values.map(::abs).min()!!
