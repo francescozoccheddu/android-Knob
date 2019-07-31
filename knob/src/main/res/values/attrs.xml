@@ -1,38 +1,60 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <resources>
     <declare-styleable name="KnobView">
-        <attr name="minValue" format="float" />
         <!-- Value -->
+        <attr name="minValue" format="float" />
         <attr name="maxValue" format="float" />
         <attr name="startValue" format="float" />
         <attr name="value" format="float" />
-        <attr name="revolutionValue" format="float" />
+        <attr name="trackValue" format="float" />
+        <attr name="snap" format="float" />
         <!-- Track -->
+        <attr name="clockwise" format="boolean" />
+        <attr name="trackThickness" format="dimension" />
+        <attr name="bedThicknessFactor" format="float" />
         <attr name="startAngle" format="float" />
-        <attr name="revolutionRadiusByOrderBackoff" format="fraction" />
-        <attr name="revolutionRadiusByOrderFrom" format="fraction" />
-        <attr name="revolutionRadiusByOrderTo" format="fraction" />
-        <attr name="revolutionThicknessBackoff" format="fraction" />
-        <!-- Thicks -->
-        <!-- Label -->
+        <attr name="trackRadiusFactor" format="float|reference" />
+        <attr name="trackRadiusBackoffFactor" format="float" />
+        <attr name="trackRadiusFromFactor" format="float" />
+        <attr name="trackRadiusToFactor" format="float" />
+        <attr name="trackThicknessFactor" format="float|reference" />
+        <attr name="trackThicknessBackoffFactor" format="float" />
+        <attr name="trackThicknessFromFactor" format="float" />
+        <attr name="trackThicknessToFactor" format="float" />
+        <attr name="bedColor" format="color|reference" />
+        <attr name="bedFromColor" format="color" />
+        <attr name="bedToColor" format="color" />
+        <attr name="progressColor" format="color|reference" />
+        <attr name="progressFromColor" format="color" />
+        <attr name="progressToColor" format="color" />
+        <attr name="thumbThicknessFactor" format="float" />
         <!-- Input -->
-        <attr name="inputThicknessFactor" format="fraction" />
-        <attr name="thickness" format="dimension" />
-        <attr name="trackThicknessFactor" format="fraction" />
-        <attr name="scrollable" format="boolean" />
+        <attr name="dragThicknessFactor" format="float" />
+        <attr name="scrollableX" format="boolean" />
+        <attr name="scrollableY" format="boolean" />
         <attr name="tappable" format="boolean" />
         <attr name="draggable" format="boolean" />
-        <attr name="progressSmoothness" format="fraction" />
-        <attr name="trackLayoutSmoothness" format="fraction" />
-        <attr name="trackLengthSmoothness" format="fraction" />
-        <attr name="clockwise" format="boolean" />
-        <attr name="snap" format="float" />
-        <attr name="labelThicks" format="integer" />
-        <attr name="trackColor" format="color|reference" />
-        <attr name="progressColor" format="color|reference" />
-        <attr name="labelColor" format="color|reference" />
+        <attr name="keyboardStep" format="float" />
+        <!-- Thicks -->
+        <attr name="thicks" format="integer" />
+        <attr name="thickBedColor" format="color|reference" />
+        <attr name="thickBedFromColor" format="color" />
+        <attr name="thickBedToColor" format="color" />
+        <attr name="thickProgressColor" format="color|reference" />
+        <attr name="thickProgressFromColor" format="color" />
+        <attr name="thickProgressToColor" format="color" />
+        <attr name="thickText" format="reference" />
+        <attr name="thickTextPrefix" format="string" />
+        <attr name="thickTextSuffix" format="string" />
+        <attr name="thickTextDecimalPlaces" format="integer" />
+        <attr name="thickSize" format="dimension" />
+        <attr name="thickTypeface" format="reference" />
+        <!-- Label -->
+        <attr name="labelColor" format="color" />
         <attr name="labelSize" format="dimension" />
-        <attr name="thumbThicknessFactor" format="fraction" />
-        <attr name="thumbEnabled" format="boolean" />
+        <attr name="labelTextPrefix" format="string" />
+        <attr name="labelTextSuffix" format="string" />
+        <attr name="labelTextDecimalPlaces" format="integer" />
+        <attr name="labelTypeface" format="reference" />
     </declare-styleable>
 </resources>
