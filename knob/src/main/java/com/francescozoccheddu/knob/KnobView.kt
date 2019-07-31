@@ -3,6 +3,7 @@ package com.francescozoccheddu.knob
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
+import android.util.TypedValue
 import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -12,6 +13,8 @@ import androidx.annotation.ColorInt
 import androidx.annotation.Dimension
 import androidx.annotation.FloatRange
 import androidx.annotation.IntRange
+import androidx.core.content.res.getColorOrThrow
+import androidx.core.content.res.getFloatOrThrow
 import com.francescozoccheddu.animatorhelpers.ABFloat
 import com.francescozoccheddu.animatorhelpers.SmoothFloat
 import com.francescozoccheddu.animatorhelpers.SpringFloat
@@ -21,8 +24,186 @@ import kotlin.math.*
 class KnobView : View {
 
     constructor(context: Context?) : this(context, null)
-    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
-    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
+    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs) {
+        context?.theme?.obtainStyledAttributes(attrs, R.styleable.KnobView, 0, 0)?.apply {
+
+            fun getFloat(id: Int) = if (hasValueOrEmpty(id)) getFloatOrThrow(id) else null
+            fun getColor(id: Int) = if (hasValueOrEmpty(id)) getColorOrThrow(id) else null
+
+            fun <Type> getList(id: Int, map: (TypedValue) -> Type): List<Type>? {
+                val value = TypedValue()
+                return if (getValue(id, value)) {
+                    if (value.type == TypedValue.TYPE_REFERENCE) {
+                        val list = mutableListOf<Type>()
+                        val valueArray = resources.obtainTypedArray(value.resourceId)
+                        for (i in 0 until valueArray.length()) {
+                            valueArray.getValue(valueArray.getIndex(i), value)
+                            list.add(map(value))
+                        }
+                        valueArray.recycle()
+                        list
+                    } else listOf(map(value))
+                } else null
+            }
+
+            fun moreThanOne(vararg values: Boolean): Boolean {
+                var one = false
+                for (value in values)
+                    if (value) {
+                        if (one)
+                            return true
+                        else
+                            one = true
+                    }
+                return false
+            }
+
+            fun getFactorProvider(listProp: Int, backoffProp: Int, fromProp: Int, toProp: Int): FactorProvider? {
+                val list = getList(listProp) { it.float }
+                val backoff = getFloat(backoffProp)
+                val from = getFloat(fromProp)
+                val to = getFloat(toProp)
+                if (moreThanOne(list != null, backoff != null, from != null || to != null))
+                    throw RuntimeException("Ambiguous FactorProvider creation attributes")
+                return if (list != null) ListFactorProvider().apply { factors.addAll(list) }
+                else if (backoff != null) BackoffFactorProvider().apply { this.backoff = backoff }
+                else if (from != null || to != null) {
+                    if (from == null || to == null)
+                        throw RuntimeException("Missing CurveFactorProvider endpoint")
+                    CurveFactorProvider().apply {
+                        this.from = from
+                        this.to = to
+                    }
+                } else null
+            }
+
+            fun getColorProvider(listProp: Int, fromProp: Int, toProp: Int): ColorProvider? {
+                val list = getList(listProp) { it.data }
+                val from = getColor(fromProp)
+                val to = getColor(toProp)
+                if (moreThanOne(list != null, from != null || to != null))
+                    throw RuntimeException("Ambiguous ColorProvider creation attributes")
+                return if (list != null) ListColorProvider().apply { colors.addAll(list) }
+                else if (from != null || to != null) {
+                    if (from == null || to == null)
+                        throw RuntimeException("Missing CurveFactorProvider endpoint")
+                    RGBCurveColorProvider().apply {
+                        this.from = from
+                        this.to = to
+                    }
+                } else null
+            }
+
+            fun ValueTextProvider.set(prefixProp: Int, suffixProp: Int, decimalPlacesProp: Int) {
+                decimalPlaces = getInt(decimalPlacesProp, decimalPlaces)
+                prefix = getString(prefixProp) ?: prefix
+                suffix = getString(suffixProp) ?: suffix
+            }
+
+            try {
+
+                // Value
+                run {
+                    val min = getFloat(R.styleable.KnobView_minValue)
+                    val start = getFloat(R.styleable.KnobView_startValue)
+                    if (min != null && start != null && start > min)
+                        throw RuntimeException("Start value cannot be greater than minimum value")
+                    val max = getFloat(R.styleable.KnobView_maxValue)
+                    if (min != null && max != null && min > max)
+                        throw RuntimeException("Minimum value cannot be greater than maximum value")
+                    minValue = min ?: minValue
+                    maxValue = max ?: maxValue
+                    startValue = start ?: startValue
+                    value = getFloat(R.styleable.KnobView_value, value)
+                    trackValue = getFloat(R.styleable.KnobView_value, trackValue)
+                    snap = getFloat(R.styleable.KnobView_value, snap)
+                }
+                // Track
+                run {
+                    clockwise = getBoolean(R.styleable.KnobView_clockwise, clockwise)
+                    trackThickness = getDimension(R.styleable.KnobView_trackThickness, trackThickness)
+                    bedThicknessFactor = getFloat(R.styleable.KnobView_bedThicknessFactor, bedThicknessFactor)
+                    startAngle = getFloat(R.styleable.KnobView_startAngle, startAngle)
+                    trackRadiusFactor = getFactorProvider(R.styleable.KnobView_trackRadiusFactor,
+                                                          R.styleable.KnobView_trackRadiusBackoffFactor,
+                                                          R.styleable.KnobView_trackRadiusFromFactor,
+                                                          R.styleable.KnobView_trackRadiusToFactor)
+                        ?: trackRadiusFactor
+                    trackThicknessFactor = getFactorProvider(R.styleable.KnobView_trackThicknessFactor,
+                                                             R.styleable.KnobView_trackThicknessBackoffFactor,
+                                                             R.styleable.KnobView_trackThicknessFromFactor,
+                                                             R.styleable.KnobView_trackThicknessToFactor)
+                        ?: trackThicknessFactor
+                    bedColor = getColorProvider(R.styleable.KnobView_bedColor,
+                                                R.styleable.KnobView_bedFromColor,
+                                                R.styleable.KnobView_bedToColor)
+                        ?: bedColor
+                    progressColor = getColorProvider(R.styleable.KnobView_progressColor,
+                                                     R.styleable.KnobView_progressFromColor,
+                                                     R.styleable.KnobView_progressToColor)
+                        ?: progressColor
+                    thumbThicknessFactor = getFloat(R.styleable.KnobView_thumbThicknessFactor, thumbThicknessFactor)
+                }
+                // Input
+                run {
+                    dragThicknessFactor = getFloat(R.styleable.KnobView_dragThicknessFactor, dragThicknessFactor)
+                    scrollableX = getBoolean(R.styleable.KnobView_scrollableX, scrollableX)
+                    scrollableY = getBoolean(R.styleable.KnobView_scrollableY, scrollableY)
+                    tappable = getBoolean(R.styleable.KnobView_tappable, tappable)
+                    draggable = getBoolean(R.styleable.KnobView_draggable, draggable)
+                    keyboardStep = getFloat(R.styleable.KnobView_keyboardStep, keyboardStep)
+                }
+                // Thicks
+                run {
+                    thicks = getInt(R.styleable.KnobView_thicks, thicks)
+                    thickBedColor = getColorProvider(R.styleable.KnobView_thickBedColor,
+                                                     R.styleable.KnobView_thickBedFromColor,
+                                                     R.styleable.KnobView_thickBedToColor)
+                        ?: thickBedColor
+                    thickProgressColor = getColorProvider(R.styleable.KnobView_progressColor,
+                                                          R.styleable.KnobView_thickProgressFromColor,
+                                                          R.styleable.KnobView_thickProgressToColor)
+                        ?: thickProgressColor
+                    thickText = run {
+                        val listProp = R.styleable.KnobView_thickText
+                        val prefixProp = R.styleable.KnobView_thickTextPrefix
+                        val suffixProp = R.styleable.KnobView_thickTextSuffix
+                        val decimalPlacesProp = R.styleable.KnobView_thickTextDecimalPlaces
+                        val hasValueProviderProperties =
+                            hasValueOrEmpty(prefixProp) || hasValueOrEmpty(suffixProp) || hasValueOrEmpty(decimalPlacesProp)
+                        val hasListProviderProperties = hasValueOrEmpty(listProp)
+                        if (moreThanOne(hasValueProviderProperties, hasListProviderProperties))
+                            throw RuntimeException("Ambiguous ThickTextProvider creation attributes")
+                        if (hasValueProviderProperties)
+                            ValueThickTextProvider().apply { set(prefixProp, suffixProp, decimalPlacesProp) }
+                        else if (hasListProviderProperties) {
+                            ThickListTextProvider().apply {
+                                thicks.addAll(getTextArray(R.styleable.KnobView_thickText).map { it.toString() })
+                            }
+                        } else thickText
+                    }
+                    thickSize = getDimension(R.styleable.KnobView_thickSize, thickSize)
+                    thickTypeface = getFont(R.styleable.KnobView_thickTypeface) ?: thickTypeface
+                }
+                // Label
+                run {
+                    labelColor = getColor(R.styleable.KnobView_labelColor, labelColor)
+                    labelText = run {
+                        val prefixProp = R.styleable.KnobView_labelTextPrefix
+                        val suffixProp = R.styleable.KnobView_labelTextSuffix
+                        val decimalPlacesProp = R.styleable.KnobView_labelTextDecimalPlaces
+                        if (hasValueOrEmpty(prefixProp) || hasValueOrEmpty(suffixProp) || hasValueOrEmpty(decimalPlacesProp)) {
+                            ValueLabelTextProvider().apply { set(prefixProp, suffixProp, decimalPlacesProp) }
+                        } else labelText
+                    }
+                    labelSize = getDimension(R.styleable.KnobView_labelSize, labelSize)
+                    labelTypeface = getFont(R.styleable.KnobView_labelTypeface) ?: labelTypeface
+                }
+            } finally {
+                recycle()
+            }
+        }
+    }
 
 
     // Value
@@ -91,6 +272,11 @@ class KnobView : View {
 
     // Track
 
+    var clockwise = true
+        set(value) {
+            field = value
+            invalidate()
+        }
     @Dimension
     var trackThickness = 32f.dp
         set(value) {
@@ -112,12 +298,12 @@ class KnobView : View {
             field = value
             invalidate()
         }
-    var trackRadiusFactor = BackoffFactorProvider()
+    var trackRadiusFactor: FactorProvider = BackoffFactorProvider()
         set(value) {
             field = value
             invalidate()
         }
-    var trackThicknessFactor = BackoffFactorProvider()
+    var trackThicknessFactor: FactorProvider = BackoffFactorProvider()
         set(value) {
             field = value
             invalidate()
@@ -166,11 +352,6 @@ class KnobView : View {
     var scrollableX = false
     var tappable = true
     var draggable = true
-    var clockwise = true
-        set(value) {
-            field = value
-            invalidate()
-        }
     @FloatRange(from = 1.0)
     var keyboardStep = 1f
         set(value) {
@@ -229,6 +410,17 @@ class KnobView : View {
 
     // Label
 
+    @ColorInt
+    var labelColor = Color.WHITE
+        set(value) {
+            field = value
+            invalidate()
+        }
+    var labelText: LabelTextProvider = ValueLabelTextProvider()
+        set(value) {
+            field = value
+            invalidate()
+        }
     @Dimension
     var labelSize = 0f
         set(value) {
@@ -238,17 +430,6 @@ class KnobView : View {
             invalidate()
         }
     var labelTypeface: Typeface = Typeface.DEFAULT
-        set(value) {
-            field = value
-            invalidate()
-        }
-    @ColorInt
-    var labelColor = Color.WHITE
-        set(value) {
-            field = value
-            invalidate()
-        }
-    var labelText = ValueLabelProvider()
         set(value) {
             field = value
             invalidate()
@@ -274,7 +455,7 @@ class KnobView : View {
 
     }
 
-    interface LabelProvider {
+    interface LabelTextProvider {
 
         fun provide(view: KnobView, value: Float): String
 
@@ -304,7 +485,7 @@ class KnobView : View {
 
     private operator fun ColorProvider.invoke(track: Int, order: Int): Int = provide(this@KnobView, track, order)
     private operator fun ThickTextProvider.invoke(track: Int, thick: Int, value: Float): String = provide(this@KnobView, track, thick, value)
-    private operator fun LabelProvider.invoke(): String = provide(this@KnobView, value)
+    private operator fun LabelTextProvider.invoke(): String = provide(this@KnobView, value)
     private operator fun FactorProvider.invoke(revolution: Int, order: Int): Float = provide(this@KnobView, revolution, order)
 
     private var rawValue = trackValue / 2f

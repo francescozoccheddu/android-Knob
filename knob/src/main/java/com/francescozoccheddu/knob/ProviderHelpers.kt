@@ -31,6 +31,11 @@ class ConstantFactorProvider : KnobView.FactorProvider {
 
     @FloatRange(from = 0.0, to = 1.0)
     var factor = 0.5f
+        set(value) {
+            if (value !in 0f..1f)
+                throw IllegalArgumentException("'${this::factor.name}' does not fall in range [0,1]")
+            field = value
+        }
 
     override fun provide(view: KnobView, track: Int, order: Int) = factor
 
@@ -50,6 +55,11 @@ class BackoffFactorProvider : KnobView.FactorProvider {
 
     @FloatRange(from = 0.0, to = 1.0)
     var backoff = 0.9f
+        set(value) {
+            if (value !in 0f..1f)
+                throw IllegalArgumentException("'${this::backoff.name}' does not fall in range [0,1]")
+            field = value
+        }
     var indexingMode = ProviderIndexingMode.BY_ORDER
 
     override fun provide(view: KnobView, track: Int, order: Int): Float = backoff.pow(indexingMode.provide(track, order).f)
@@ -60,8 +70,18 @@ class CurveFactorProvider : KnobView.FactorProvider {
 
     @FloatRange(from = 0.0, to = 1.0)
     var from = 0f
+        set(value) {
+            if (value !in 0f..1f)
+                throw IllegalArgumentException("'${this::from.name}' does not fall in range [0,1]")
+            field = value
+        }
     @FloatRange(from = 0.0, to = 1.0)
     var to = 1f
+        set(value) {
+            if (value !in 0f..1f)
+                throw IllegalArgumentException("'${this::to.name}' does not fall in range [0,1]")
+            field = value
+        }
     var interpolator = LinearInterpolator()
     var indexingMode = ProviderIndexingMode.BY_ORDER
 
@@ -107,28 +127,56 @@ class RGBCurveColorProvider : KnobView.ColorProvider {
 
 class HSVCurveColorProvider : KnobView.ColorProvider {
 
-    @FloatRange(from = 0.0, to = 360.0)
     var fromHue = 0f
     @FloatRange(from = 0.0, to = 1.0)
     var fromSaturation = 0f
+        set(value) {
+            if (value !in 0f..1f)
+                throw IllegalArgumentException("'${this::fromSaturation.name}' does not fall in range [0,1]")
+            field = value
+        }
     @FloatRange(from = 0.0, to = 1.0)
     var fromValue = 0f
+        set(value) {
+            if (value !in 0f..1f)
+                throw IllegalArgumentException("'${this::fromValue.name}' does not fall in range [0,1]")
+            field = value
+        }
     @FloatRange(from = 0.0, to = 1.0)
     var fromAlpha = 1f
-    @FloatRange(from = 0.0, to = 360.0)
+        set(value) {
+            if (value !in 0f..1f)
+                throw IllegalArgumentException("'${this::fromAlpha.name}' does not fall in range [0,1]")
+            field = value
+        }
     var toHue = 0f
     @FloatRange(from = 0.0, to = 1.0)
     var toSaturation = 0f
+        set(value) {
+            if (value !in 0f..1f)
+                throw IllegalArgumentException("'${this::toSaturation.name}' does not fall in range [0,1]")
+            field = value
+        }
     @FloatRange(from = 0.0, to = 1.0)
     var toValue = 1f
+        set(value) {
+            if (value !in 0f..1f)
+                throw IllegalArgumentException("'${this::toValue.name}' does not fall in range [0,1]")
+            field = value
+        }
     @FloatRange(from = 0.0, to = 1.0)
     var toAlpha = 1f
+        set(value) {
+            if (value !in 0f..1f)
+                throw IllegalArgumentException("'${this::toAlpha.name}' does not fall in range [0,1]")
+            field = value
+        }
     var interpolator = LinearInterpolator()
     var indexingMode = ProviderIndexingMode.BY_ORDER
 
     override fun provide(view: KnobView, track: Int, order: Int): Int {
         val progress = interpolator.getInterpolation(indexingMode.provide(track, order).f / max(view.trackCount - 1, 1))
-        val h = lerp(fromHue, toHue, progress)
+        val h = normalizeAngle(lerp(fromHue, toHue, progress))
         val s = lerp(fromSaturation, toSaturation, progress)
         val v = lerp(fromValue, toValue, progress)
         val a = lerp(fromAlpha, toAlpha, progress)
@@ -138,28 +186,48 @@ class HSVCurveColorProvider : KnobView.ColorProvider {
 }
 
 
-// Thicks
+// Text
 
-class ValueThickTextProvider : KnobView.ThickTextProvider {
+abstract class ValueTextProvider {
 
-    @IntRange(from = 0L, to = 4L)
+    @IntRange(from = 0L)
     var decimalPlaces = 0
-    @Size(min = 0, max = 3)
+        set(value) {
+            if (value < 0)
+                throw IllegalArgumentException("'${this::decimalPlaces.name}' cannot be negative")
+            field = value
+        }
+    @Size(min = 0)
     var prefix = ""
-    @Size(min = 0, max = 3)
+    @Size(min = 0)
     var suffix = ""
 
-    override fun provide(view: KnobView, track: Int, thick: Int, value: Float): String {
+    protected fun provide(value: Float): String {
         val rounded = BigDecimal(value.d).setScale(decimalPlaces, RoundingMode.HALF_UP)
         return "$prefix$rounded$suffix"
     }
 
 }
 
-class PercentageThickTextProvider : KnobView.ThickTextProvider {
+abstract class PercentageTextProvider {
 
-    override fun provide(view: KnobView, track: Int, thick: Int, value: Float) =
+    fun provide(view: KnobView, value: Float) =
         "${((value - view.startValue) / (view.maxValue - view.startValue) * 100f).roundToInt()}%"
+
+}
+
+
+// Thicks
+
+class ValueThickTextProvider : ValueTextProvider(), KnobView.ThickTextProvider {
+
+    override fun provide(view: KnobView, track: Int, thick: Int, value: Float) = provide(value)
+
+}
+
+class PercentageThickTextProvider : PercentageTextProvider(), KnobView.ThickTextProvider {
+
+    override fun provide(view: KnobView, track: Int, thick: Int, value: Float) = provide(view, value)
 
 }
 
@@ -177,25 +245,10 @@ class ThickListTextProvider : KnobView.ThickTextProvider {
 
 // Label
 
-class ValueLabelProvider : KnobView.LabelProvider {
+class ValueLabelTextProvider : ValueTextProvider(), KnobView.LabelTextProvider {
 
-    @IntRange(from = 0L, to = 4L)
-    var decimalPlaces = 0
-    @Size(min = 0, max = 3)
-    var prefix = ""
-    @Size(min = 0, max = 3)
-    var suffix = ""
-
-    override fun provide(view: KnobView, value: Float): String {
-        val rounded = BigDecimal(value.d).setScale(decimalPlaces, RoundingMode.HALF_UP)
-        return "$prefix$rounded$suffix"
-    }
+    override fun provide(view: KnobView, value: Float): String = provide(value)
 
 }
 
-class PercentageLabelProvider : KnobView.LabelProvider {
-
-    override fun provide(view: KnobView, value: Float) =
-        "${((value - view.startValue) / (view.maxValue - view.startValue) * 100f).roundToInt()}%"
-
-}
+class PercentageLabelTextProvider : PercentageTextProvider(), KnobView.LabelTextProvider
