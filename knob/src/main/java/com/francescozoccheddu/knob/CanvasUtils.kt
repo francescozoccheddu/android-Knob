@@ -8,6 +8,7 @@ import kotlin.math.sin
 
 
 // Track
+
 private val trackRect = RectF()
 private val trackPaint = Paint().apply {
     isAntiAlias = true
@@ -29,9 +30,9 @@ internal fun Canvas.drawTrack(center: PointF,
         if (sweep != 0f) {
             drawArc(trackRect, -startAngle, -sweep, false, trackPaint)
         } else {
-            val arcStartRad = startAngle.rad
-            val x = cos(arcStartRad) * radius
-            val y = -sin(arcStartRad) * radius
+            val sa = startAngle.rad
+            val x = cos(sa) * radius
+            val y = -sin(sa) * radius
             drawPoint(center.x + x, center.y + y, trackPaint)
         }
     }
@@ -39,6 +40,7 @@ internal fun Canvas.drawTrack(center: PointF,
 
 
 // Labels
+
 private val tempTextRect = Rect()
 private val tempTextPaint = TextPaint().apply {
     isAntiAlias = true
@@ -53,9 +55,9 @@ internal fun Canvas.drawThick(center: PointF,
                               size: Float,
                               typeface: Typeface) {
 
-    val angleRad = angle.rad
-    val x = cos(angleRad) * radius
-    val y = -sin(angleRad) * radius
+    val a = angle.rad
+    val x = cos(a) * radius
+    val y = -sin(a) * radius
     drawCenteredText(center.x + x, center.y + y, text, color, size, typeface)
 }
 
@@ -74,16 +76,13 @@ internal fun Canvas.drawCenteredText(x: Float,
     }
 }
 
-val RectF.center get() = PointF(centerX(), centerY())
 
-private val Float.rad get() = Math.toRadians(this.d).f
+// Clip
 
 private fun circleBB(x: Float, y: Float, radius: Float) = trackRect.apply {
     set(x - radius, y - radius, x + radius, y + radius)
 }
 
-
-// Clip
 private val tempPath = Path()
 
 private fun arcPath(center: PointF,
