@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.res.TypedArray
 import android.graphics.*
 import android.util.AttributeSet
-import android.util.TypedValue
 import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -17,7 +16,6 @@ import androidx.annotation.IntRange
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.content.res.getColorOrThrow
 import androidx.core.content.res.getFloatOrThrow
-import androidx.core.content.res.getResourceIdOrThrow
 import com.francescozoccheddu.animatorhelpers.ABFloat
 import com.francescozoccheddu.animatorhelpers.SmoothFloat
 import com.francescozoccheddu.animatorhelpers.SpringFloat
@@ -30,8 +28,9 @@ class KnobView : View {
     constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs) {
         context?.theme?.obtainStyledAttributes(attrs, R.styleable.KnobView, 0, 0)?.apply {
 
-            fun getFloat(id: Int) = if (hasValueOrEmpty(id)) getFloatOrThrow(id) else null
-            fun getColor(id: Int) = if (hasValueOrEmpty(id)) getColorOrThrow(id) else null
+            fun has(id: Int) = hasValue(id)
+            fun getFloat(id: Int) = if (has(id)) getFloatOrThrow(id) else null
+            fun getColor(id: Int) = if (has(id)) getColorOrThrow(id) else null
             fun getFont(id: Int): Typeface? {
                 val resId = getResourceId(id, -1)
                 return if (resId != -1) ResourcesCompat.getFont(context, resId)
@@ -39,13 +38,15 @@ class KnobView : View {
             }
 
             fun <Type> getList(id: Int, map: (TypedArray, Int) -> Type): List<Type>? {
-                if (hasValueOrEmpty(id) && getType(id) == TypedValue.TYPE_REFERENCE) {
-                    val resId = getResourceIdOrThrow(id)
-                    val array = resources.obtainTypedArray(resId)
-                    try {
-                        return (0 until array.length()).map { map(array, it) }
-                    } finally {
-                        array.recycle()
+                if (has(id)) {
+                    val resId = getResourceId(id, -1)
+                    if (id != -1) {
+                        val array = resources.obtainTypedArray(resId)
+                        try {
+                            return (0 until array.length()).map { map(array, it) }
+                        } finally {
+                            array.recycle()
+                        }
                     }
                 }
                 return null
@@ -177,8 +178,8 @@ class KnobView : View {
                         val suffixProp = R.styleable.KnobView_thickTextSuffix
                         val decimalPlacesProp = R.styleable.KnobView_thickTextDecimalPlaces
                         val hasValueProviderProperties =
-                            hasValueOrEmpty(prefixProp) || hasValueOrEmpty(suffixProp) || hasValueOrEmpty(decimalPlacesProp)
-                        val hasListProviderProperties = hasValueOrEmpty(listProp)
+                            has(prefixProp) || has(suffixProp) || has(decimalPlacesProp)
+                        val hasListProviderProperties = has(listProp)
                         if (moreThanOne(hasValueProviderProperties, hasListProviderProperties))
                             throw RuntimeException("Ambiguous ThickTextProvider creation attributes")
                         if (hasValueProviderProperties)
@@ -199,7 +200,7 @@ class KnobView : View {
                         val prefixProp = R.styleable.KnobView_labelTextPrefix
                         val suffixProp = R.styleable.KnobView_labelTextSuffix
                         val decimalPlacesProp = R.styleable.KnobView_labelTextDecimalPlaces
-                        if (hasValueOrEmpty(prefixProp) || hasValueOrEmpty(suffixProp) || hasValueOrEmpty(decimalPlacesProp)) {
+                        if (has(prefixProp) || has(suffixProp) || has(decimalPlacesProp)) {
                             ValueLabelTextProvider().apply { set(prefixProp, suffixProp, decimalPlacesProp) }
                         } else labelText
                     }

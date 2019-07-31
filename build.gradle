@@ -10,6 +10,7 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:3.4.2'
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath 'com.novoda:bintray-release:+'
     }
 }
 
@@ -17,6 +18,9 @@ allprojects {
     repositories {
         google()
         jcenter()
+        maven {
+            url "https://dl.bintray.com/francescoz/android"
+        }
     }
 }
 
