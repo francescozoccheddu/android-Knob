@@ -1,6 +1,7 @@
 package com.francescozoccheddu.knob
 
 import android.content.Context
+import android.content.res.TypedArray
 import android.graphics.*
 import android.util.AttributeSet
 import android.util.TypedValue
@@ -13,8 +14,10 @@ import androidx.annotation.ColorInt
 import androidx.annotation.Dimension
 import androidx.annotation.FloatRange
 import androidx.annotation.IntRange
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.content.res.getColorOrThrow
 import androidx.core.content.res.getFloatOrThrow
+import androidx.core.content.res.getResourceIdOrThrow
 import com.francescozoccheddu.animatorhelpers.ABFloat
 import com.francescozoccheddu.animatorhelpers.SmoothFloat
 import com.francescozoccheddu.animatorhelpers.SpringFloat
@@ -29,22 +32,26 @@ class KnobView : View {
 
             fun getFloat(id: Int) = if (hasValueOrEmpty(id)) getFloatOrThrow(id) else null
             fun getColor(id: Int) = if (hasValueOrEmpty(id)) getColorOrThrow(id) else null
-
-            fun <Type> getList(id: Int, map: (TypedValue) -> Type): List<Type>? {
-                val value = TypedValue()
-                return if (getValue(id, value)) {
-                    if (value.type == TypedValue.TYPE_REFERENCE) {
-                        val list = mutableListOf<Type>()
-                        val valueArray = resources.obtainTypedArray(value.resourceId)
-                        for (i in 0 until valueArray.length()) {
-                            valueArray.getValue(valueArray.getIndex(i), value)
-                            list.add(map(value))
-                        }
-                        valueArray.recycle()
-                        list
-                    } else listOf(map(value))
-                } else null
+            fun getFont(id: Int): Typeface? {
+                val resId = getResourceId(id, -1)
+                return if (resId != -1) ResourcesCompat.getFont(context, resId)
+                else null
             }
+
+            fun <Type> getList(id: Int, map: (TypedArray, Int) -> Type): List<Type>? {
+                if (hasValueOrEmpty(id) && getType(id) == TypedValue.TYPE_REFERENCE) {
+                    val resId = getResourceIdOrThrow(id)
+                    val array = resources.obtainTypedArray(resId)
+                    try {
+                        return (0 until array.length()).map { map(array, it) }
+                    } finally {
+                        array.recycle()
+                    }
+                }
+                return null
+            }
+
+            fun <Type> pack(item: Type?) = if (item != null) listOf(item) else null
 
             fun moreThanOne(vararg values: Boolean): Boolean {
                 var one = false
@@ -59,7 +66,7 @@ class KnobView : View {
             }
 
             fun getFactorProvider(listProp: Int, backoffProp: Int, fromProp: Int, toProp: Int): FactorProvider? {
-                val list = getList(listProp) { it.float }
+                val list = getList(listProp) { a, i -> a.getFloatOrThrow(i) } ?: pack(getFloat(listProp))
                 val backoff = getFloat(backoffProp)
                 val from = getFloat(fromProp)
                 val to = getFloat(toProp)
@@ -78,7 +85,7 @@ class KnobView : View {
             }
 
             fun getColorProvider(listProp: Int, fromProp: Int, toProp: Int): ColorProvider? {
-                val list = getList(listProp) { it.data }
+                val list = getList(listProp) { a, i -> a.getColorOrThrow(i) } ?: pack(getColor(listProp))
                 val from = getColor(fromProp)
                 val to = getColor(toProp)
                 if (moreThanOne(list != null, from != null || to != null))
@@ -160,7 +167,7 @@ class KnobView : View {
                                                      R.styleable.KnobView_thickBedFromColor,
                                                      R.styleable.KnobView_thickBedToColor)
                         ?: thickBedColor
-                    thickProgressColor = getColorProvider(R.styleable.KnobView_progressColor,
+                    thickProgressColor = getColorProvider(R.styleable.KnobView_thickProgressColor,
                                                           R.styleable.KnobView_thickProgressFromColor,
                                                           R.styleable.KnobView_thickProgressToColor)
                         ?: thickProgressColor
