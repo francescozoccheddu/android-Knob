@@ -2,11 +2,21 @@ package com.francescozoccheddu.knob
 
 import android.content.res.Resources
 import android.graphics.Color
+import android.graphics.PointF
+import android.graphics.RectF
 import android.util.TypedValue
 import kotlin.math.*
 
+
+// Visual
+
 internal val Float.dp
     get() = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, this, Resources.getSystem().displayMetrics)
+
+internal val RectF.center get() = PointF(centerX(), centerY())
+
+
+// Color
 
 private val tempHsvArray = FloatArray(3)
 
@@ -18,7 +28,10 @@ internal fun hsv(hue: Float, saturation: Float,
         this[2] = value
     })
 
-internal fun lerp(from: Float, to: Float, progress: Float) = from * (1 - progress) + to * progress
+internal val Int.red get() = Color.red(this)
+internal val Int.green get() = Color.green(this)
+internal val Int.blue get() = Color.blue(this)
+internal val Int.alpha get() = Color.alpha(this)
 
 internal fun lerpColor(from: Int, to: Int, progress: Float): Int {
     val r = lerp(from.red.f, to.red.f, progress).roundToInt()
@@ -28,10 +41,10 @@ internal fun lerpColor(from: Int, to: Int, progress: Float): Int {
     return Color.argb(a, r, g, b)
 }
 
-internal val Int.red get() = Color.red(this)
-internal val Int.green get() = Color.green(this)
-internal val Int.blue get() = Color.blue(this)
-internal val Int.alpha get() = Color.alpha(this)
+
+// Math
+
+internal fun lerp(from: Float, to: Float, progress: Float) = from * (1 - progress) + to * progress
 
 internal fun Float.clamp(min: Float, max: Float) = if (this < min) min else if (this > max) max else this
 
@@ -83,3 +96,5 @@ internal val Float.next: Int
     }
 
 internal fun absMin(vararg values: Float) = values.map(::abs).min()!!
+
+internal val Float.rad get() = Math.toRadians(this.d).f

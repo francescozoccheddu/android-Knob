@@ -12,38 +12,37 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
+
 // Factor
 
 enum class ProviderIndexingMode {
-    BY_REVOLUTION, BY_ORDER
+    BY_TRACK, BY_ORDER
 }
 
-private fun ProviderIndexingMode.provide(revolution: Int, order: Int) = when (this) {
+private fun ProviderIndexingMode.provide(track: Int, order: Int) = when (this) {
     ProviderIndexingMode.BY_ORDER -> order
-    ProviderIndexingMode.BY_REVOLUTION -> revolution
+    ProviderIndexingMode.BY_TRACK -> track
 }
 
-private fun <Type> ProviderIndexingMode.fromList(revolution: Int, order: Int, list: List<Type>) =
-    list[provide(revolution, order)]
-
-private fun <Type> ProviderIndexingMode.fromListClamped(revolution: Int, order: Int, list: List<Type>) =
-    list[provide(revolution, order).clamp(0, list.lastIndex)]
+private fun <Type> ProviderIndexingMode.fromListClamped(track: Int, order: Int, list: List<Type>) =
+    list[provide(track, order).clamp(0, list.lastIndex)]
 
 class ConstantFactorProvider : KnobView.FactorProvider {
 
     @FloatRange(from = 0.0, to = 1.0)
     var factor = 0.5f
 
-    override fun provide(view: KnobView, revolution: Int, order: Int) = factor
+    override fun provide(view: KnobView, track: Int, order: Int) = factor
+
 }
 
-class ListFactorProvider(@Size(min = 1) factors: Iterable<Float>) : KnobView.FactorProvider {
+class ListFactorProvider : KnobView.FactorProvider {
 
     @Size(min = 1)
     val factors = mutableListOf<Float>()
     var indexingMode = ProviderIndexingMode.BY_ORDER
 
-    override fun provide(view: KnobView, revolution: Int, order: Int) = indexingMode.fromListClamped(revolution, order, factors)
+    override fun provide(view: KnobView, track: Int, order: Int) = indexingMode.fromListClamped(track, order, factors)
 
 }
 
@@ -53,7 +52,7 @@ class BackoffFactorProvider : KnobView.FactorProvider {
     var backoff = 0.9f
     var indexingMode = ProviderIndexingMode.BY_ORDER
 
-    override fun provide(view: KnobView, revolution: Int, order: Int): Float = backoff.pow(indexingMode.provide(revolution, order).f)
+    override fun provide(view: KnobView, track: Int, order: Int): Float = backoff.pow(indexingMode.provide(track, order).f)
 
 }
 
@@ -66,15 +65,21 @@ class CurveFactorProvider : KnobView.FactorProvider {
     var interpolator = LinearInterpolator()
     var indexingMode = ProviderIndexingMode.BY_ORDER
 
-    override fun provide(view: KnobView, revolution: Int, order: Int) =
-        lerp(from, to, interpolator.getInterpolation(indexingMode.provide(revolution, order).f / max(view.revolutionCount - 1, 1)))
+    override fun provide(view: KnobView, track: Int, order: Int) =
+        lerp(from, to, interpolator.getInterpolation(indexingMode.provide(track, order).f / max(view.trackCount - 1, 1)))
 
 }
 
+
 // Color
 
-class ConstantColorProvider(@ColorInt val color: Int) : KnobView.ColorProvider {
-    override fun provide(view: KnobView, revolution: Int, order: Int) = color
+class ConstantColorProvider : KnobView.ColorProvider {
+
+    @ColorInt
+    var color = Color.BLACK
+
+    override fun provide(view: KnobView, track: Int, order: Int) = color
+
 }
 
 class ListColorProvider : KnobView.ColorProvider {
@@ -83,7 +88,7 @@ class ListColorProvider : KnobView.ColorProvider {
     val colors = mutableListOf<Int>()
     var indexingMode = ProviderIndexingMode.BY_ORDER
 
-    override fun provide(view: KnobView, revolution: Int, order: Int) = indexingMode.fromListClamped(revolution, order, colors)
+    override fun provide(view: KnobView, track: Int, order: Int) = indexingMode.fromListClamped(track, order, colors)
 }
 
 class RGBCurveColorProvider : KnobView.ColorProvider {
@@ -95,8 +100,8 @@ class RGBCurveColorProvider : KnobView.ColorProvider {
     var interpolator = LinearInterpolator()
     var indexingMode = ProviderIndexingMode.BY_ORDER
 
-    override fun provide(view: KnobView, revolution: Int, order: Int) =
-        lerpColor(from, to, interpolator.getInterpolation(indexingMode.provide(revolution, order).f / max(view.revolutionCount - 1, 1)))
+    override fun provide(view: KnobView, track: Int, order: Int) =
+        lerpColor(from, to, interpolator.getInterpolation(indexingMode.provide(track, order).f / max(view.trackCount - 1, 1)))
 
 }
 
@@ -121,8 +126,8 @@ class HSVCurveColorProvider : KnobView.ColorProvider {
     var interpolator = LinearInterpolator()
     var indexingMode = ProviderIndexingMode.BY_ORDER
 
-    override fun provide(view: KnobView, revolution: Int, order: Int): Int {
-        val progress = interpolator.getInterpolation(indexingMode.provide(revolution, order).f / max(view.revolutionCount - 1, 1))
+    override fun provide(view: KnobView, track: Int, order: Int): Int {
+        val progress = interpolator.getInterpolation(indexingMode.provide(track, order).f / max(view.trackCount - 1, 1))
         val h = lerp(fromHue, toHue, progress)
         val s = lerp(fromSaturation, toSaturation, progress)
         val v = lerp(fromValue, toValue, progress)
@@ -132,9 +137,10 @@ class HSVCurveColorProvider : KnobView.ColorProvider {
 
 }
 
+
 // Thicks
 
-class ValueThickProvider : KnobView.ThickProvider {
+class ValueThickTextProvider : KnobView.ThickTextProvider {
 
     @IntRange(from = 0L, to = 4L)
     var decimalPlaces = 0
@@ -143,29 +149,31 @@ class ValueThickProvider : KnobView.ThickProvider {
     @Size(min = 0, max = 3)
     var suffix = ""
 
-    override fun provide(view: KnobView, revolution: Int, thick: Int, value: Float): String {
+    override fun provide(view: KnobView, track: Int, thick: Int, value: Float): String {
         val rounded = BigDecimal(value.d).setScale(decimalPlaces, RoundingMode.HALF_UP)
         return "$prefix$rounded$suffix"
     }
 
 }
 
-class PercentageThickProvider : KnobView.ThickProvider {
-    override fun provide(view: KnobView, revolution: Int, thick: Int, value: Float) =
+class PercentageThickTextProvider : KnobView.ThickTextProvider {
+
+    override fun provide(view: KnobView, track: Int, thick: Int, value: Float) =
         "${((value - view.startValue) / (view.maxValue - view.startValue) * 100f).roundToInt()}%"
 
 }
 
-class ThickListProvider : KnobView.ThickProvider {
+class ThickListTextProvider : KnobView.ThickTextProvider {
 
     val thicks = mutableListOf<String>()
-    var restartOnRevolution = true
+    var restartOnTrack = true
 
-    override fun provide(view: KnobView, revolution: Int, thick: Int, value: Float) =
-        if (restartOnRevolution) thicks[thick + view.thicks * revolution]
+    override fun provide(view: KnobView, track: Int, thick: Int, value: Float) =
+        if (restartOnTrack) thicks[thick + view.thicks * track]
         else thicks[thick]
 
 }
+
 
 // Label
 
@@ -186,6 +194,7 @@ class ValueLabelProvider : KnobView.LabelProvider {
 }
 
 class PercentageLabelProvider : KnobView.LabelProvider {
+
     override fun provide(view: KnobView, value: Float) =
         "${((value - view.startValue) / (view.maxValue - view.startValue) * 100f).roundToInt()}%"
 

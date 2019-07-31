@@ -68,10 +68,10 @@ class KnobView : View {
                 throw IllegalArgumentException("'${this::value.name}' does not fall in [$minValue,$maxValue] range")
             rawValue = value
         }
-    var revolutionValue = 10f
+    var trackValue = 10f
         set(value) {
             if (value <= 0.0f)
-                throw IllegalArgumentException("'${::revolutionValue.name}' must be positive")
+                throw IllegalArgumentException("'${::trackValue.name}' must be positive")
             field = value
             invalidate()
         }
@@ -85,25 +85,25 @@ class KnobView : View {
             invalidate()
         }
     var onValueChange: ((KnobView) -> Unit)? = null
-    val revolutionCount
-        get() = ((maxValue - startValue) / revolutionValue).ceilToInt()
+    val trackCount
+        get() = ((maxValue - startValue) / trackValue).ceilToInt()
 
 
     // Track
 
     @Dimension
-    var thickness = 32f.dp
+    var trackThickness = 32f.dp
         set(value) {
             if (value <= 0.0f)
-                throw IllegalArgumentException("'${::thickness.name}' must be positive")
+                throw IllegalArgumentException("'${::trackThickness.name}' must be positive")
             field = value
             invalidate()
         }
     @FloatRange(from = 0.0, to = 1.0)
-    var trackThicknessFactor = 0.9f
+    var bedThicknessFactor = 0.9f
         set(value) {
             if (value !in 0f..1f)
-                throw IllegalArgumentException("'${::trackThicknessFactor.name}' does not fall in [0,1] range")
+                throw IllegalArgumentException("'${::bedThicknessFactor.name}' does not fall in [0,1] range")
             field = value
             invalidate()
         }
@@ -112,22 +112,24 @@ class KnobView : View {
             field = value
             invalidate()
         }
-    var radiusFactorProvider = BackoffFactorProvider()
+    var trackRadiusFactor = BackoffFactorProvider()
         set(value) {
             field = value
             invalidate()
         }
-    var thicknessFactorProvider = BackoffFactorProvider()
+    var trackThicknessFactor = BackoffFactorProvider()
         set(value) {
             field = value
             invalidate()
         }
-    var trackColorProvider: ColorProvider = ConstantColorProvider(hsv(0f, 0f, 0.1f))
+    var bedColor: ColorProvider = ConstantColorProvider().apply {
+        color = hsv(0f, 0f, 0.1f)
+    }
         set(value) {
             field = value
             invalidate()
         }
-    var progressColorProvider: ColorProvider = HSVCurveColorProvider().apply {
+    var progressColor: ColorProvider = HSVCurveColorProvider().apply {
         fromHue = 180f
         fromSaturation = 0.75f
         fromValue = 0.75f
@@ -154,10 +156,10 @@ class KnobView : View {
     // Input
 
     @FloatRange(from = 1.0, to = 3.0)
-    var inputThicknessFactor = 3f
+    var dragThicknessFactor = 3f
         set(value) {
             if (value !in 1f..10f)
-                throw IllegalArgumentException("'${::inputThicknessFactor.name}' does not fall in [1,10] range")
+                throw IllegalArgumentException("'${::dragThicknessFactor.name}' does not fall in [1,10] range")
             field = value
         }
     var scrollableY = true
@@ -189,7 +191,7 @@ class KnobView : View {
             field = value
             invalidate()
         }
-    var thickBackgroundColorProvider: ColorProvider? = ListColorProvider().apply {
+    var thickBedColor: ColorProvider? = ListColorProvider().apply {
         colors += Color.DKGRAY
         colors += Color.TRANSPARENT
     }
@@ -197,7 +199,7 @@ class KnobView : View {
             field = value
             invalidate()
         }
-    var thickForegroundColorProvider: ColorProvider = ListColorProvider().apply {
+    var thickProgressColor: ColorProvider = ListColorProvider().apply {
         colors += Color.WHITE
         colors += Color.TRANSPARENT
     }
@@ -205,7 +207,7 @@ class KnobView : View {
             field = value
             invalidate()
         }
-    var thickProvider: ThickProvider = ValueThickProvider()
+    var thickText: ThickTextProvider = ValueThickTextProvider()
         set(value) {
             field = value
             invalidate()
@@ -246,7 +248,7 @@ class KnobView : View {
             field = value
             invalidate()
         }
-    var labelProvider = ValueLabelProvider()
+    var labelText = ValueLabelProvider()
         set(value) {
             field = value
             invalidate()
@@ -259,14 +261,14 @@ class KnobView : View {
 
         @ColorInt
         fun provide(view: KnobView,
-                    @IntRange(from = 0) revolution: Int,
-                    order: Int): Int
+                    @IntRange(from = 0) track: Int,
+                    @IntRange(from = 0) order: Int): Int
     }
 
-    interface ThickProvider {
+    interface ThickTextProvider {
 
         fun provide(view: KnobView,
-                    @IntRange(from = 0) revolution: Int,
+                    @IntRange(from = 0) track: Int,
                     @IntRange(from = 0) thick: Int,
                     value: Float): String
 
@@ -280,9 +282,10 @@ class KnobView : View {
 
     interface FactorProvider {
 
+        @FloatRange(from = 0.0, to = 1.0)
         fun provide(view: KnobView,
-                    @IntRange(from = 0) revolution: Int,
-                    order: Int): Float
+                    @IntRange(from = 0) track: Int,
+                    @IntRange(from = 0) order: Int): Float
 
     }
 
@@ -290,28 +293,21 @@ class KnobView : View {
     // Implementation
 
     companion object {
-        private const val MAX_REVOLUTIONS = 4
+        private const val MAX_TRACKS = 4
         private val SCROLL_REASONABLE_RADIUS = 128f.dp
-        private const val SCROLL_REASONABLE_RADIUS_FACTOR = 0.5f
-        private val INPUT_DRAG_ARC_SNAP_THRESHOLD = 60f.dp
+        private const val SCROLL_REASONABLE_RADIUS_INFLUENCE = 0.5f
+        private val DRAG_ARC_SNAP_THRESHOLD = 60f.dp
         private const val SCROLL_HOLD_RADIUS_FACTOR = 1f / 2f
-        private const val RADIUS_SCROLL_FACTOR = 1f
-        private const val THICK_CULLING_LENGHT_PADDING = 1f / 10f
+        private const val SCROLL_RADIUS_FACTOR = 1f
+        private const val THICK_MAX_EXPECTED_HALF_LENGTH = 1f / 10f
     }
 
-    private operator fun ColorProvider.invoke(@IntRange(from = 0) revolution: Int,
-                                              order: Int): Int = provide(this@KnobView, revolution, order)
-
-    private operator fun ThickProvider.invoke(@IntRange(from = 0) revolution: Int,
-                                              @IntRange(from = 0) thick: Int,
-                                              value: Float): String = provide(this@KnobView, revolution, thick, value)
-
+    private operator fun ColorProvider.invoke(track: Int, order: Int): Int = provide(this@KnobView, track, order)
+    private operator fun ThickTextProvider.invoke(track: Int, thick: Int, value: Float): String = provide(this@KnobView, track, thick, value)
     private operator fun LabelProvider.invoke(): String = provide(this@KnobView, value)
+    private operator fun FactorProvider.invoke(revolution: Int, order: Int): Float = provide(this@KnobView, revolution, order)
 
-    private operator fun FactorProvider.invoke(@IntRange(from = 0) revolution: Int,
-                                               order: Int): Float = provide(this@KnobView, revolution, order)
-
-    private var rawValue = revolutionValue / 2f
+    private var rawValue = trackValue / 2f
         set(value) {
             val lastValue = value
             field = value.clamp(minValue, maxValue)
@@ -332,7 +328,7 @@ class KnobView : View {
         interpolator = DecelerateInterpolator()
         speed = 3f
     }
-    private var trackLength by ABFloat(0f).apply {
+    private var masterTrackLength by ABFloat(0f).apply {
         onUpdate = {
             order = max(it.value.previous, 0).f
             invalidate()
@@ -340,22 +336,22 @@ class KnobView : View {
         interpolator = DecelerateInterpolator()
         speed = 4f
     }
-    private var progressLength by SmoothFloat(0f).apply {
+    private var masterProgressLength by SmoothFloat(0f).apply {
         onUpdate = { invalidate() }
         smoothness = 0.1f
         snap = 0.01f
     }
 
-    private fun lengthByValue(value: Float) = (value - startValue) / revolutionValue
+    private fun lengthByValue(value: Float) = (value - startValue) / trackValue
 
-    private fun valueByLength(length: Float) = length * revolutionValue + startValue
+    private fun valueByLength(length: Float) = length * trackValue + startValue
 
     private val contentRect = RectF()
 
     private fun updateLength() {
         val length = lengthByValue(value)
-        progressLength = length
-        trackLength = min(max(ceil(length), 1f), lengthByValue(maxValue))
+        masterProgressLength = length
+        masterTrackLength = min(max(ceil(length), 1f), lengthByValue(maxValue))
     }
 
     init {
@@ -372,7 +368,7 @@ class KnobView : View {
 
             for (t in run {
                 val orderCount = order.ceilToInt();
-                max(0, orderCount - MAX_REVOLUTIONS)..orderCount
+                max(0, orderCount - MAX_TRACKS)..orderCount
             }) {
                 val prevOrder = (order - t).floorToInt()
                 val prevPositiveOrder = max(0, prevOrder)
@@ -381,11 +377,11 @@ class KnobView : View {
                 fun getSweep(length: Float) = (if (t == 0) min(length, 1f) - minValueLength else (length - t).clamp01) * 360f
                 val startLength = if (t == 0) minValueLength else 0f
                 val trackStartAngle = startLength * 360f * angleSign + startAngle
-                val radius = lerp(radiusFactorProvider(t, prevPositiveOrder),
-                                  radiusFactorProvider(t, nextOrder), alpha) * outerTrackRadius
-                val thicknessFactor = lerp(if (prevOrder >= 0) thicknessFactorProvider(t, prevOrder) else 0f,
-                                           thicknessFactorProvider(t, nextOrder), alpha)
-                val baseThickness = thicknessFactor * thickness
+                val radius = lerp(trackRadiusFactor(t, prevPositiveOrder),
+                                  trackRadiusFactor(t, nextOrder), alpha) * outerTrackRadius
+                val thicknessFactor = lerp(if (prevOrder >= 0) trackThicknessFactor(t, prevPositiveOrder) else 0f,
+                                           trackThicknessFactor(t, nextOrder), alpha)
+                val baseThickness = thicknessFactor * trackThickness
                 val trackThumbActiveness = (1f - min(abs(order - t), 1f)) * thumbActiveness
                 val progressThickness = lerp(baseThickness, baseThickness * min(thumbThicknessFactor, 1f), trackThumbActiveness)
 
@@ -393,18 +389,18 @@ class KnobView : View {
                                endLength: Float,
                                color: Int,
                                trackThickness: Float) {
-                    val thickSize = thickSize * thicknessFactor
-                    if (color.alpha > 0 && thickSize > 0f && thicks > 0) {
+                    val actualThickSize = thickSize * thicknessFactor
+                    if (color.alpha > 0 && actualThickSize > 0f && thicks > 0) {
                         var clip = false
                         val interspace = (1f / thicks)
                         val range = if (startLength <= 0.0f && endLength >= 1.0f) 0 until thicks
                         else run {
                             fun getEndPoint(length: Float, start: Boolean): Int {
                                 val p = if (start)
-                                    max(((length - THICK_CULLING_LENGHT_PADDING) / interspace).ceilToInt(), 0)
+                                    max(((length - THICK_MAX_EXPECTED_HALF_LENGTH) / interspace).ceilToInt(), 0)
                                 else
-                                    min(((length + THICK_CULLING_LENGHT_PADDING) / interspace).floorToInt(), thicks - 1)
-                                clip = clip || abs(p * interspace - length) <= THICK_CULLING_LENGHT_PADDING
+                                    min(((length + THICK_MAX_EXPECTED_HALF_LENGTH) / interspace).floorToInt(), thicks - 1)
+                                clip = clip || abs(p * interspace - length) <= THICK_MAX_EXPECTED_HALF_LENGTH
                                 return p
                             }
                             getEndPoint(startLength, true)..getEndPoint(endLength, false)
@@ -416,62 +412,67 @@ class KnobView : View {
                         for (thick in range) {
                             val length = interspace * thick
                             val angle = startAngle + length * 360f * angleSign
-                            val text = thickProvider(t, thick, valueByLength(t + length))
-                            drawThick(center, radius, angle, text, color, thickSize, thickTypeface)
+                            val text = thickText(t, thick, valueByLength(t + length))
+                            drawThick(center, radius, angle, text, color, actualThickSize, thickTypeface)
                         }
                         if (clip)
                             restore()
                     }
                 }
 
-                val thickBackgroundColor = run {
-                    val provider = thickBackgroundColorProvider
+                val trackThickBedColor = run {
+                    val provider = thickBedColor
                     if (provider != null)
                         lerpColor(provider(t, prevPositiveOrder),
                                   provider(t, nextOrder), alpha)
                     else Color.TRANSPARENT
                 }
-                val thickForegroundColor = lerpColor(thickForegroundColorProvider(t, prevPositiveOrder),
-                                                     thickForegroundColorProvider(t, nextOrder), alpha)
-                val singlePassThicks = thickBackgroundColorProvider == null || run {
-                    val bg = thickBackgroundColor
-                    val fg = thickForegroundColor
+                val trackThickProgressColor = lerpColor(thickProgressColor(t, prevPositiveOrder),
+                                                        thickProgressColor(t, nextOrder), alpha)
+                val singlePassThicks = thickBedColor == null || run {
+                    val bg = trackThickBedColor
+                    val fg = trackThickProgressColor
                     fg.alpha == 255 && fg.red == bg.red && fg.green == bg.green && fg.blue == bg.blue
                 }
 
                 run {
                     // Track
-                    val color = lerpColor(trackColorProvider(t, prevPositiveOrder),
-                                          trackColorProvider(t, nextOrder), alpha)
-                    drawTrack(center, radius, trackStartAngle, getSweep(trackLength) * angleSign, color, progressThickness * trackThicknessFactor)
+                    val trackBedColor = lerpColor(bedColor(t, prevPositiveOrder),
+                                                  bedColor(t, nextOrder), alpha)
+                    drawTrack(center,
+                              radius,
+                              trackStartAngle,
+                              getSweep(masterTrackLength) * angleSign,
+                              trackBedColor,
+                              progressThickness * bedThicknessFactor)
                 }
                 run {
-                    val progressColor = lerpColor(progressColorProvider(t, prevPositiveOrder),
-                                                  progressColorProvider(t, nextOrder), alpha)
+                    val trackProgressColor = lerpColor(progressColor(t, prevPositiveOrder),
+                                                       progressColor(t, nextOrder), alpha)
                     // Background thicks
                     if (!singlePassThicks) {
-                        val thicksStartLength = if (progressColor.alpha < 255) startLength else max((progressLength - t), 0f)
-                        drawThicks(thicksStartLength, max(trackLength - t, 0f), thickBackgroundColor, progressThickness * trackThicknessFactor)
+                        val thicksStartLength = if (trackProgressColor.alpha < 255) startLength else max((masterProgressLength - t), 0f)
+                        drawThicks(thicksStartLength, max(masterTrackLength - t, 0f), trackThickBedColor, progressThickness * bedThicknessFactor)
                     }
                     // Progress
-                    val sweep = getSweep(progressLength) * angleSign
-                    drawTrack(center, radius, trackStartAngle, sweep, progressColor, progressThickness)
+                    val sweep = getSweep(masterProgressLength) * angleSign
+                    drawTrack(center, radius, trackStartAngle, sweep, trackProgressColor, progressThickness)
                     // Thumb
                     run {
                         val thumbThickness = lerp(baseThickness, baseThickness * max(thumbThicknessFactor, 1f), trackThumbActiveness)
-                        drawTrack(center, radius, trackStartAngle + sweep, 0f, progressColor, thumbThickness)
+                        drawTrack(center, radius, trackStartAngle + sweep, 0f, trackProgressColor, thumbThickness)
                     }
                 }
                 run {
                     // Foreground thicks
-                    val endLength = if (singlePassThicks) max(progressLength, trackLength) else progressLength
-                    drawThicks(startLength, max(endLength - t, 0f), thickForegroundColor, progressThickness)
+                    val endLength = if (singlePassThicks) max(masterProgressLength, masterTrackLength) else masterProgressLength
+                    drawThicks(startLength, max(endLength - t, 0f), trackThickProgressColor, progressThickness)
                 }
             }
 
             run {
                 // Label
-                drawCenteredText(center.x, center.y, labelProvider(), labelColor, labelSize, labelTypeface)
+                drawCenteredText(center.x, center.y, labelText(), labelColor, labelSize, labelTypeface)
             }
         }
     }
@@ -497,19 +498,19 @@ class KnobView : View {
     }
 
     private val contentRadius get() = contentRect.width() / 2f
-    private val outerTrackRadius get() = (contentRect.width() - thickness * max(1f, thumbThicknessFactor)) / 2f
+    private val outerTrackRadius get() = (contentRect.width() - trackThickness * max(1f, thumbThicknessFactor)) / 2f
 
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
 
         private fun pickDistanceHit(distance: Float, thicknessFactor: Float) =
-            abs(outerTrackRadius - distance) <= thickness / 2f * thicknessFactor
+            abs(outerTrackRadius - distance) <= trackThickness / 2f * thicknessFactor
 
         private fun pickAngleLength(angle: Float) =
             normalizeAngle((angle - startAngle) * if (clockwise) -1f else 1f) / 360f
 
         private fun pickTapAngleLength(angle: Float): Float? {
-            var l = pickAngleLength(angle) + trackLength.previous
-            if (l > trackLength)
+            var l = pickAngleLength(angle) + masterTrackLength.previous
+            if (l > masterTrackLength)
                 l -= 1f
             return if (l >= lengthByValue(minValue)) l else null
         }
@@ -525,18 +526,18 @@ class KnobView : View {
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent?, distanceX: Float, distanceY: Float): Boolean {
             if (e1 != null) {
                 if (draggable && e1 != null && pickTap(e1.angle, e1.distance) != null
-                    && e2 != null && pickDistanceHit(e2.distance, inputThicknessFactor)) {
-                    val naive = pickAngleLength(e2.angle) + trackLength.previous
+                    && e2 != null && pickDistanceHit(e2.distance, dragThicknessFactor)) {
+                    val naive = pickAngleLength(e2.angle) + masterTrackLength.previous
                     val valueLength = lengthByValue(value)
                     val rawValueLength = lengthByValue(rawValue)
-                    fun getMinDiff(l: Float) = absMin(l - valueLength, l - rawValueLength, l - progressLength)
+                    fun getMinDiff(l: Float) = absMin(l - valueLength, l - rawValueLength, l - masterProgressLength)
                     var bestDiff = 0f
                     var best: Float? = null
                     val circ = outerTrackRadius * 2f * PI
                     for (o in -1..+1) {
                         val c = naive + o
                         val diff = getMinDiff(c)
-                        if ((best == null && diff * circ <= INPUT_DRAG_ARC_SNAP_THRESHOLD) || diff < bestDiff) {
+                        if ((best == null && diff * circ <= DRAG_ARC_SNAP_THRESHOLD) || diff < bestDiff) {
                             bestDiff = diff
                             best = c
                         }
@@ -547,7 +548,7 @@ class KnobView : View {
                 } else if (scrollableX || scrollableY) {
                     val r = contentRadius
                     if (r > 0 && e1.distance <= r * SCROLL_HOLD_RADIUS_FACTOR) {
-                        val factor = RADIUS_SCROLL_FACTOR * revolutionValue / lerp(r, SCROLL_REASONABLE_RADIUS, SCROLL_REASONABLE_RADIUS_FACTOR)
+                        val factor = SCROLL_RADIUS_FACTOR * trackValue / lerp(r, SCROLL_REASONABLE_RADIUS, SCROLL_REASONABLE_RADIUS_INFLUENCE)
                         if (scrollableX)
                             rawValue += distanceX * factor
                         if (scrollableY)
@@ -598,11 +599,11 @@ class KnobView : View {
                 true
             }
             KeyEvent.KEYCODE_PAGE_DOWN -> {
-                rawValue = (value / revolutionValue).previous * revolutionValue
+                rawValue = (value / trackValue).previous * trackValue
                 true
             }
             KeyEvent.KEYCODE_PAGE_UP -> {
-                rawValue = (value / revolutionValue).next * revolutionValue
+                rawValue = (value / trackValue).next * trackValue
                 true
             }
             KeyEvent.KEYCODE_MOVE_HOME -> {
