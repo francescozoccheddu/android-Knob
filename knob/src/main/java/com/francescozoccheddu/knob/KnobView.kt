@@ -22,18 +22,10 @@ class KnobView : View {
 
     constructor(context: Context?) : this(context, null)
     constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
-
     constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr)
 
-    companion object {
-        private const val MAX_REVOLUTIONS = 4
-        private val SCROLL_REASONABLE_RADIUS = 128f.dp
-        private const val SCROLL_REASONABLE_RADIUS_FACTOR = 0.5f
-        private val INPUT_DRAG_ARC_SNAP_THRESHOLD = 60f.dp
-        private const val SCROLL_HOLD_RADIUS_FACTOR = 1f / 2f
-        private const val RADIUS_SCROLL_FACTOR = 1f
-        private const val THICK_CULLING_LENGHT_PADDING = 1f / 10f
-    }
+
+    // Value
 
     var minValue = 0f
         set(value) {
@@ -83,6 +75,22 @@ class KnobView : View {
             field = value
             invalidate()
         }
+    @FloatRange(from = 0.0)
+    var snap = 0f
+        set(value) {
+            if (value < 0.0f)
+                throw IllegalArgumentException("'${::snap.name}' cannot be negative")
+            field = value
+            rawValue = value
+            invalidate()
+        }
+    var onValueChange: ((KnobView) -> Unit)? = null
+    val revolutionCount
+        get() = ((maxValue - startValue) / revolutionValue).ceilToInt()
+
+
+    // Track
+
     @Dimension
     var thickness = 32f.dp
         set(value) {
@@ -105,42 +113,20 @@ class KnobView : View {
             invalidate()
         }
     var radiusFactorProvider = BackoffFactorProvider()
+        set(value) {
+            field = value
+            invalidate()
+        }
     var thicknessFactorProvider = BackoffFactorProvider()
-    @FloatRange(from = 1.0, to = 3.0)
-    var inputThicknessFactor = 3f
         set(value) {
-            if (value !in 0f..1f)
-                throw IllegalArgumentException("'${::inputThicknessFactor.name}' does not fall in [0,3] range")
-            field = value
-            invalidate()
-        }
-    var scrollableY = true
-    var scrollableX = false
-    var tappable = true
-    var draggable = true
-    var clockwise = true
-        set(value) {
-            field = value
-            invalidate()
-        }
-    @FloatRange(from = 0.0)
-    var snap = 0f
-        set(value) {
-            if (value < 0.0f)
-                throw IllegalArgumentException("'${::snap.name}' cannot be negative")
-            field = value
-            rawValue = value
-            invalidate()
-        }
-    @IntRange(from = 0, to = 20)
-    var thicks = 10
-        set(value) {
-            if (value !in 0..12)
-                throw IllegalArgumentException("'${::thicks.name}' does not fall in [0,12] range")
             field = value
             invalidate()
         }
     var trackColorProvider: ColorProvider = ConstantColorProvider(hsv(0f, 0f, 0.1f))
+        set(value) {
+            field = value
+            invalidate()
+        }
     var progressColorProvider: ColorProvider = HSVCurveColorProvider().apply {
         fromHue = 180f
         fromSaturation = 0.75f
@@ -151,14 +137,74 @@ class KnobView : View {
         toValue = 0.5f
         toAlpha = 1f
     }
+        set(value) {
+            field = value
+            invalidate()
+        }
+    @FloatRange(from = 0.0, to = 2.0)
+    var thumbThicknessFactor = 0.75f
+        set(value) {
+            if (value !in 0f..2f)
+                throw IllegalArgumentException("'${::thumbThicknessFactor.name}' does not fall in [0,2] range")
+            field = value
+            invalidate()
+        }
+
+
+    // Input
+
+    @FloatRange(from = 1.0, to = 3.0)
+    var inputThicknessFactor = 3f
+        set(value) {
+            if (value !in 1f..10f)
+                throw IllegalArgumentException("'${::inputThicknessFactor.name}' does not fall in [1,10] range")
+            field = value
+        }
+    var scrollableY = true
+    var scrollableX = false
+    var tappable = true
+    var draggable = true
+    var clockwise = true
+        set(value) {
+            field = value
+            invalidate()
+        }
+    @FloatRange(from = 1.0)
+    var keyboardStep = 1f
+        set(value) {
+            if (value <= 0.0f)
+                throw IllegalArgumentException("'${::keyboardStep.name}' must be positive")
+            field = value
+            invalidate()
+        }
+
+
+    // Thicks
+
+    @IntRange(from = 0, to = 20)
+    var thicks = 10
+        set(value) {
+            if (value !in 0..12)
+                throw IllegalArgumentException("'${::thicks.name}' does not fall in [0,12] range")
+            field = value
+            invalidate()
+        }
     var thickBackgroundColorProvider: ColorProvider? = ListColorProvider().apply {
         colors += Color.DKGRAY
         colors += Color.TRANSPARENT
     }
+        set(value) {
+            field = value
+            invalidate()
+        }
     var thickForegroundColorProvider: ColorProvider = ListColorProvider().apply {
         colors += Color.WHITE
         colors += Color.TRANSPARENT
     }
+        set(value) {
+            field = value
+            invalidate()
+        }
     var thickProvider: ThickProvider = ValueThickProvider()
         set(value) {
             field = value
@@ -177,6 +223,10 @@ class KnobView : View {
             field = value
             invalidate()
         }
+
+
+    // Label
+
     @Dimension
     var labelSize = 0f
         set(value) {
@@ -192,26 +242,18 @@ class KnobView : View {
         }
     @ColorInt
     var labelColor = Color.WHITE
+        set(value) {
+            field = value
+            invalidate()
+        }
     var labelProvider = ValueLabelProvider()
-    @FloatRange(from = 0.0, to = 2.0)
-    var thumbThicknessFactor = 0.75f
         set(value) {
-            if (value !in 0f..2f)
-                throw IllegalArgumentException("'${::thumbThicknessFactor.name}' does not fall in [0,2] range")
             field = value
             invalidate()
         }
-    @FloatRange(from = 1.0)
-    var keyboardStep = 1f
-        set(value) {
-            if (value <= 0.0f)
-                throw IllegalArgumentException("'${::keyboardStep.name}' must be positive")
-            field = value
-            invalidate()
-        }
-    var onValueChange: ((KnobView) -> Unit)? = null
-    val revolutionCount
-        get() = ((maxValue - startValue) / revolutionValue).ceilToInt()
+
+
+    // Providers
 
     interface ColorProvider {
 
@@ -242,6 +284,19 @@ class KnobView : View {
                     @IntRange(from = 0) revolution: Int,
                     order: Int): Float
 
+    }
+
+
+    // Implementation
+
+    companion object {
+        private const val MAX_REVOLUTIONS = 4
+        private val SCROLL_REASONABLE_RADIUS = 128f.dp
+        private const val SCROLL_REASONABLE_RADIUS_FACTOR = 0.5f
+        private val INPUT_DRAG_ARC_SNAP_THRESHOLD = 60f.dp
+        private const val SCROLL_HOLD_RADIUS_FACTOR = 1f / 2f
+        private const val RADIUS_SCROLL_FACTOR = 1f
+        private const val THICK_CULLING_LENGHT_PADDING = 1f / 10f
     }
 
     private operator fun ColorProvider.invoke(@IntRange(from = 0) revolution: Int,
@@ -421,7 +476,6 @@ class KnobView : View {
         }
     }
 
-
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
         val paddingX = paddingLeft + paddingRight
@@ -442,58 +496,54 @@ class KnobView : View {
         // TODO Implement
     }
 
-    private fun pickLengthAt(distance: Float, angle: Float, thicknessFactor: Float): Float? {
-        val d = abs(outerTrackRadius - distance)
-        val maxD = thickness / 2f * thicknessFactor
-        if (d <= maxD) {
-            val ua = (angle - startAngle) * if (clockwise) -1f else 1f
-            val frl = normalizeAngle(ua) / 360f
-            var lrl = frl + max(lengthByValue(rawValue).previous, 0)
-            if (lrl > lengthByValue(maxValue)) lrl -= 1f
-            if (lrl >= lengthByValue(minValue)) return lrl
-        }
-        return null
-    }
-
     private val contentRadius get() = contentRect.width() / 2f
     private val outerTrackRadius get() = (contentRect.width() - thickness * max(1f, thumbThicknessFactor)) / 2f
 
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
 
+        private fun pickDistanceHit(distance: Float, thicknessFactor: Float) =
+            abs(outerTrackRadius - distance) <= thickness / 2f * thicknessFactor
+
+        private fun pickAngleLength(angle: Float) =
+            normalizeAngle((angle - startAngle) * if (clockwise) -1f else 1f) / 360f
+
+        private fun pickTapAngleLength(angle: Float): Float? {
+            var l = pickAngleLength(angle) + trackLength.previous
+            if (l > trackLength)
+                l -= 1f
+            return if (l >= lengthByValue(minValue)) l else null
+        }
+
+        private fun pickTap(angle: Float, distance: Float) =
+            if (pickDistanceHit(distance, 1f)) pickTapAngleLength(angle) else null
+
         private val MotionEvent.offX get() = getX(actionIndex) - contentRect.centerX()
         private val MotionEvent.offY get() = getY(actionIndex) - contentRect.centerY()
         private val MotionEvent.distance get() = length(offX, offY)
-
-        private fun pickLengthAt(event: MotionEvent, thicknessFactor: Float): Float? {
-            val nx = event.offX
-            val ny = event.offY
-            return pickLengthAt(length(nx, ny), angle(nx, -ny), thicknessFactor)
-        }
-
+        private val MotionEvent.angle get() = angle(offX, -offY)
 
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent?, distanceX: Float, distanceY: Float): Boolean {
             if (e1 != null) {
-                if (draggable && e2 != null && pickLengthAt(e1, inputThicknessFactor) != null) {
-                    val length = pickLengthAt(e2, inputThicknessFactor)
-                    if (length != null) {
-                        val rawLength = lengthByValue(rawValue)
-                        val snappedLength = lengthByValue(value)
-                        val minLength = lengthByValue(minValue)
-                        val maxLength = lengthByValue(maxValue)
-                        fun trySet(length: Float): Boolean {
-                            if (length in minLength..maxLength) {
-                                val minDiff = absMin(length - rawLength, length - snappedLength, length - progressLength)
-                                if (minDiff * Math.PI * 2 * outerTrackRadius <= INPUT_DRAG_ARC_SNAP_THRESHOLD) {
-                                    rawValue = valueByLength(length)
-                                    return true
-                                }
-                            }
-                            return false
+                if (draggable && e1 != null && pickTap(e1.angle, e1.distance) != null
+                    && e2 != null && pickDistanceHit(e2.distance, inputThicknessFactor)) {
+                    val naive = pickAngleLength(e2.angle) + trackLength.previous
+                    val valueLength = lengthByValue(value)
+                    val rawValueLength = lengthByValue(rawValue)
+                    fun getMinDiff(l: Float) = absMin(l - valueLength, l - rawValueLength, l - progressLength)
+                    var bestDiff = 0f
+                    var best: Float? = null
+                    val circ = outerTrackRadius * 2f * PI
+                    for (o in -1..+1) {
+                        val c = naive + o
+                        val diff = getMinDiff(c)
+                        if ((best == null && diff * circ <= INPUT_DRAG_ARC_SNAP_THRESHOLD) || diff < bestDiff) {
+                            bestDiff = diff
+                            best = c
                         }
-                        // FIXME Not working if minValue > 0f
-                        // TODO Choose closest
-                        return trySet(length) || trySet(length + 1f) || trySet(length - 1f)
                     }
+                    if (best != null)
+                        rawValue = valueByLength(best)
+                    return true
                 } else if (scrollableX || scrollableY) {
                     val r = contentRadius
                     if (r > 0 && e1.distance <= r * SCROLL_HOLD_RADIUS_FACTOR) {
@@ -515,7 +565,7 @@ class KnobView : View {
 
         override fun onSingleTapUp(e: MotionEvent?): Boolean {
             if (tappable && e != null) {
-                val length = pickLengthAt(e, inputThicknessFactor)
+                val length = pickTap(e.angle, e.distance)
                 if (length != null) {
                     rawValue = valueByLength(length)
                     return true
