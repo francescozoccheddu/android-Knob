@@ -1,6 +1,6 @@
-# KnobView
-KnobView for Android
+# Knob
+Knob view for Android
 ## Installation
 ``` gradle
-implementation 'com.francescozoccheddu.knob:Knob:0.1'
+implementation 'com.francescozoccheddu.knob:Knob:0.2'
 ```
