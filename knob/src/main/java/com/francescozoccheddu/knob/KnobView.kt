@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.res.TypedArray
 import android.graphics.*
 import android.util.AttributeSet
+import android.util.TypedValue
 import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -38,15 +39,14 @@ class KnobView : View {
             }
 
             fun <Type> getList(id: Int, map: (TypedArray, Int) -> Type): List<Type>? {
-                if (has(id)) {
+                val value = TypedValue()
+                if (getValue(id, value) && value.type == TypedValue.TYPE_REFERENCE) {
                     val resId = getResourceId(id, -1)
-                    if (id != -1) {
-                        val array = resources.obtainTypedArray(resId)
-                        try {
-                            return (0 until array.length()).map { map(array, it) }
-                        } finally {
-                            array.recycle()
-                        }
+                    val array = resources.obtainTypedArray(resId)
+                    try {
+                        return (0 until array.length()).map { map(array, it) }
+                    } finally {
+                        array.recycle()
                     }
                 }
                 return null
@@ -132,23 +132,31 @@ class KnobView : View {
                     trackThickness = getDimension(R.styleable.KnobView_trackThickness, trackThickness)
                     bedThicknessFactor = getFloat(R.styleable.KnobView_bedThicknessFactor, bedThicknessFactor)
                     startAngle = getFloat(R.styleable.KnobView_startAngle, startAngle)
-                    trackRadiusFactor = getFactorProvider(R.styleable.KnobView_trackRadiusFactor,
-                                                          R.styleable.KnobView_trackRadiusBackoffFactor,
-                                                          R.styleable.KnobView_trackRadiusFromFactor,
-                                                          R.styleable.KnobView_trackRadiusToFactor)
+                    trackRadiusFactor = getFactorProvider(
+                        R.styleable.KnobView_trackRadiusFactor,
+                        R.styleable.KnobView_trackRadiusBackoffFactor,
+                        R.styleable.KnobView_trackRadiusFromFactor,
+                        R.styleable.KnobView_trackRadiusToFactor
+                    )
                         ?: trackRadiusFactor
-                    trackThicknessFactor = getFactorProvider(R.styleable.KnobView_trackThicknessFactor,
-                                                             R.styleable.KnobView_trackThicknessBackoffFactor,
-                                                             R.styleable.KnobView_trackThicknessFromFactor,
-                                                             R.styleable.KnobView_trackThicknessToFactor)
+                    trackThicknessFactor = getFactorProvider(
+                        R.styleable.KnobView_trackThicknessFactor,
+                        R.styleable.KnobView_trackThicknessBackoffFactor,
+                        R.styleable.KnobView_trackThicknessFromFactor,
+                        R.styleable.KnobView_trackThicknessToFactor
+                    )
                         ?: trackThicknessFactor
-                    bedColor = getColorProvider(R.styleable.KnobView_bedColor,
-                                                R.styleable.KnobView_bedFromColor,
-                                                R.styleable.KnobView_bedToColor)
+                    bedColor = getColorProvider(
+                        R.styleable.KnobView_bedColor,
+                        R.styleable.KnobView_bedFromColor,
+                        R.styleable.KnobView_bedToColor
+                    )
                         ?: bedColor
-                    progressColor = getColorProvider(R.styleable.KnobView_progressColor,
-                                                     R.styleable.KnobView_progressFromColor,
-                                                     R.styleable.KnobView_progressToColor)
+                    progressColor = getColorProvider(
+                        R.styleable.KnobView_progressColor,
+                        R.styleable.KnobView_progressFromColor,
+                        R.styleable.KnobView_progressToColor
+                    )
                         ?: progressColor
                     thumbThicknessFactor = getFloat(R.styleable.KnobView_thumbThicknessFactor, thumbThicknessFactor)
                 }
@@ -164,13 +172,17 @@ class KnobView : View {
                 // Thicks
                 run {
                     thicks = getInt(R.styleable.KnobView_thicks, thicks)
-                    thickBedColor = getColorProvider(R.styleable.KnobView_thickBedColor,
-                                                     R.styleable.KnobView_thickBedFromColor,
-                                                     R.styleable.KnobView_thickBedToColor)
+                    thickBedColor = getColorProvider(
+                        R.styleable.KnobView_thickBedColor,
+                        R.styleable.KnobView_thickBedFromColor,
+                        R.styleable.KnobView_thickBedToColor
+                    )
                         ?: thickBedColor
-                    thickProgressColor = getColorProvider(R.styleable.KnobView_thickProgressColor,
-                                                          R.styleable.KnobView_thickProgressFromColor,
-                                                          R.styleable.KnobView_thickProgressToColor)
+                    thickProgressColor = getColorProvider(
+                        R.styleable.KnobView_thickProgressColor,
+                        R.styleable.KnobView_thickProgressFromColor,
+                        R.styleable.KnobView_thickProgressToColor
+                    )
                         ?: thickProgressColor
                     thickText = run {
                         val listProp = R.styleable.KnobView_thickText
@@ -449,17 +461,21 @@ class KnobView : View {
     interface ColorProvider {
 
         @ColorInt
-        fun provide(view: KnobView,
-                    @IntRange(from = 0) track: Int,
-                    @IntRange(from = 0) order: Int): Int
+        fun provide(
+            view: KnobView,
+            @IntRange(from = 0) track: Int,
+            @IntRange(from = 0) order: Int
+        ): Int
     }
 
     interface ThickTextProvider {
 
-        fun provide(view: KnobView,
-                    @IntRange(from = 0) track: Int,
-                    @IntRange(from = 0) thick: Int,
-                    value: Float): String
+        fun provide(
+            view: KnobView,
+            @IntRange(from = 0) track: Int,
+            @IntRange(from = 0) thick: Int,
+            value: Float
+        ): String
 
     }
 
@@ -472,9 +488,11 @@ class KnobView : View {
     interface FactorProvider {
 
         @FloatRange(from = 0.0, to = 1.0)
-        fun provide(view: KnobView,
-                    @IntRange(from = 0) track: Int,
-                    @IntRange(from = 0) order: Int): Float
+        fun provide(
+            view: KnobView,
+            @IntRange(from = 0) track: Int,
+            @IntRange(from = 0) order: Int
+        ): Float
 
     }
 
@@ -492,9 +510,12 @@ class KnobView : View {
     }
 
     private operator fun ColorProvider.invoke(track: Int, order: Int): Int = provide(this@KnobView, track, order)
-    private operator fun ThickTextProvider.invoke(track: Int, thick: Int, value: Float): String = provide(this@KnobView, track, thick, value)
+    private operator fun ThickTextProvider.invoke(track: Int, thick: Int, value: Float): String =
+        provide(this@KnobView, track, thick, value)
+
     private operator fun LabelTextProvider.invoke(): String = provide(this@KnobView, value)
-    private operator fun FactorProvider.invoke(revolution: Int, order: Int): Float = provide(this@KnobView, revolution, order)
+    private operator fun FactorProvider.invoke(revolution: Int, order: Int): Float =
+        provide(this@KnobView, revolution, order)
 
     private var rawValue = trackValue / 2f
         set(value) {
@@ -563,21 +584,30 @@ class KnobView : View {
                 val prevPositiveOrder = max(0, prevOrder)
                 val nextOrder = (order - t).ceilToInt()
                 val alpha = order - floor(order)
-                fun getSweep(length: Float) = (if (t == 0) min(length, 1f) - minValueLength else (length - t).clamp01) * 360f
+                fun getSweep(length: Float) =
+                    (if (t == 0) min(length, 1f) - minValueLength else (length - t).clamp01) * 360f
+
                 val startLength = if (t == 0) minValueLength else 0f
                 val trackStartAngle = startLength * 360f * angleSign + startAngle
-                val radius = lerp(trackRadiusFactor(t, prevPositiveOrder),
-                                  trackRadiusFactor(t, nextOrder), alpha) * outerTrackRadius
-                val thicknessFactor = lerp(if (prevOrder >= 0) trackThicknessFactor(t, prevPositiveOrder) else 0f,
-                                           trackThicknessFactor(t, nextOrder), alpha)
+                val radius = lerp(
+                    trackRadiusFactor(t, prevPositiveOrder),
+                    trackRadiusFactor(t, nextOrder), alpha
+                ) * outerTrackRadius
+                val thicknessFactor = lerp(
+                    if (prevOrder >= 0) trackThicknessFactor(t, prevPositiveOrder) else 0f,
+                    trackThicknessFactor(t, nextOrder), alpha
+                )
                 val baseThickness = thicknessFactor * trackThickness
                 val trackThumbActiveness = (1f - min(abs(order - t), 1f)) * thumbActiveness
-                val progressThickness = lerp(baseThickness, baseThickness * min(thumbThicknessFactor, 1f), trackThumbActiveness)
+                val progressThickness =
+                    lerp(baseThickness, baseThickness * min(thumbThicknessFactor, 1f), trackThumbActiveness)
 
-                fun drawThicks(startLength: Float,
-                               endLength: Float,
-                               color: Int,
-                               trackThickness: Float) {
+                fun drawThicks(
+                    startLength: Float,
+                    endLength: Float,
+                    color: Int,
+                    trackThickness: Float
+                ) {
                     val actualThickSize = thickSize * thicknessFactor
                     if (color.alpha > 0 && actualThickSize > 0f && thicks > 0) {
                         var clip = false
@@ -588,7 +618,10 @@ class KnobView : View {
                                 val p = if (start)
                                     max(((length - THICK_MAX_EXPECTED_HALF_LENGTH) / interspace).ceilToInt(), 0)
                                 else
-                                    min(((length + THICK_MAX_EXPECTED_HALF_LENGTH) / interspace).floorToInt(), thicks - 1)
+                                    min(
+                                        ((length + THICK_MAX_EXPECTED_HALF_LENGTH) / interspace).floorToInt(),
+                                        if (startLength > THICK_MAX_EXPECTED_HALF_LENGTH) thicks else (thicks - 1)
+                                    )
                                 clip = clip || abs(p * interspace - length) <= THICK_MAX_EXPECTED_HALF_LENGTH
                                 return p
                             }
@@ -596,7 +629,13 @@ class KnobView : View {
                         }
                         if (clip) {
                             save()
-                            canvas.clipTrack(center, radius, trackStartAngle, getSweep(endLength + t) * angleSign, trackThickness)
+                            canvas.clipTrack(
+                                center,
+                                radius,
+                                trackStartAngle,
+                                getSweep(endLength + t) * angleSign,
+                                trackThickness
+                            )
                         }
                         for (thick in range) {
                             val length = interspace * thick
@@ -612,12 +651,16 @@ class KnobView : View {
                 val trackThickBedColor = run {
                     val provider = thickBedColor
                     if (provider != null)
-                        lerpColor(provider(t, prevPositiveOrder),
-                                  provider(t, nextOrder), alpha)
+                        lerpColor(
+                            provider(t, prevPositiveOrder),
+                            provider(t, nextOrder), alpha
+                        )
                     else Color.TRANSPARENT
                 }
-                val trackThickProgressColor = lerpColor(thickProgressColor(t, prevPositiveOrder),
-                                                        thickProgressColor(t, nextOrder), alpha)
+                val trackThickProgressColor = lerpColor(
+                    thickProgressColor(t, prevPositiveOrder),
+                    thickProgressColor(t, nextOrder), alpha
+                )
                 val singlePassThicks = thickBedColor == null || run {
                     val bg = trackThickBedColor
                     val fg = trackThickProgressColor
@@ -626,35 +669,49 @@ class KnobView : View {
 
                 run {
                     // Track
-                    val trackBedColor = lerpColor(bedColor(t, prevPositiveOrder),
-                                                  bedColor(t, nextOrder), alpha)
-                    drawTrack(center,
-                              radius,
-                              trackStartAngle,
-                              getSweep(masterTrackLength) * angleSign,
-                              trackBedColor,
-                              progressThickness * bedThicknessFactor)
+                    val trackBedColor = lerpColor(
+                        bedColor(t, prevPositiveOrder),
+                        bedColor(t, nextOrder), alpha
+                    )
+                    drawTrack(
+                        center,
+                        radius,
+                        trackStartAngle,
+                        getSweep(masterTrackLength) * angleSign,
+                        trackBedColor,
+                        progressThickness * bedThicknessFactor
+                    )
                 }
                 run {
-                    val trackProgressColor = lerpColor(progressColor(t, prevPositiveOrder),
-                                                       progressColor(t, nextOrder), alpha)
+                    val trackProgressColor = lerpColor(
+                        progressColor(t, prevPositiveOrder),
+                        progressColor(t, nextOrder), alpha
+                    )
                     // Background thicks
                     if (!singlePassThicks) {
-                        val thicksStartLength = if (trackProgressColor.alpha < 255) startLength else max((masterProgressLength - t), 0f)
-                        drawThicks(thicksStartLength, max(masterTrackLength - t, 0f), trackThickBedColor, progressThickness * bedThicknessFactor)
+                        val thicksStartLength =
+                            if (trackProgressColor.alpha < 255) startLength else max((masterProgressLength - t), 0f)
+                        drawThicks(
+                            thicksStartLength,
+                            max(masterTrackLength - t, 0f),
+                            trackThickBedColor,
+                            progressThickness * bedThicknessFactor
+                        )
                     }
                     // Progress
                     val sweep = getSweep(masterProgressLength) * angleSign
                     drawTrack(center, radius, trackStartAngle, sweep, trackProgressColor, progressThickness)
                     // Thumb
                     run {
-                        val thumbThickness = lerp(baseThickness, baseThickness * max(thumbThicknessFactor, 1f), trackThumbActiveness)
+                        val thumbThickness =
+                            lerp(baseThickness, baseThickness * max(thumbThicknessFactor, 1f), trackThumbActiveness)
                         drawTrack(center, radius, trackStartAngle + sweep, 0f, trackProgressColor, thumbThickness)
                     }
                 }
                 run {
                     // Foreground thicks
-                    val endLength = if (singlePassThicks) max(masterProgressLength, masterTrackLength) else masterProgressLength
+                    val endLength =
+                        if (singlePassThicks) max(masterProgressLength, masterTrackLength) else masterProgressLength
                     drawThicks(startLength, max(endLength - t, 0f), trackThickProgressColor, progressThickness)
                 }
             }
@@ -715,7 +772,8 @@ class KnobView : View {
         override fun onScroll(e1: MotionEvent?, e2: MotionEvent?, distanceX: Float, distanceY: Float): Boolean {
             if (e1 != null) {
                 if (draggable && e1 != null && pickTap(e1.angle, e1.distance) != null
-                    && e2 != null && pickDistanceHit(e2.distance, dragThicknessFactor)) {
+                    && e2 != null && pickDistanceHit(e2.distance, dragThicknessFactor)
+                ) {
                     val naive = pickAngleLength(e2.angle) + masterTrackLength.previous
                     val valueLength = lengthByValue(value)
                     val rawValueLength = lengthByValue(rawValue)
@@ -737,7 +795,11 @@ class KnobView : View {
                 } else if (scrollableX || scrollableY) {
                     val r = contentRadius
                     if (r > 0 && e1.distance <= r * SCROLL_HOLD_RADIUS_FACTOR) {
-                        val factor = SCROLL_RADIUS_FACTOR * trackValue / lerp(r, SCROLL_REASONABLE_RADIUS, SCROLL_REASONABLE_RADIUS_INFLUENCE)
+                        val factor = SCROLL_RADIUS_FACTOR * trackValue / lerp(
+                            r,
+                            SCROLL_REASONABLE_RADIUS,
+                            SCROLL_REASONABLE_RADIUS_INFLUENCE
+                        )
                         if (scrollableX)
                             rawValue += distanceX * factor
                         if (scrollableY)
