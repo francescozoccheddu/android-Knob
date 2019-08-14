@@ -123,8 +123,8 @@ class KnobView : View {
                     maxValue = max ?: maxValue
                     startValue = start ?: startValue
                     value = getFloat(R.styleable.KnobView_value, value)
-                    trackValue = getFloat(R.styleable.KnobView_value, trackValue)
-                    snap = getFloat(R.styleable.KnobView_value, snap)
+                    trackValue = getFloat(R.styleable.KnobView_trackValue, trackValue)
+                    snap = getFloat(R.styleable.KnobView_snap, snap)
                 }
                 // Track
                 run {
